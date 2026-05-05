@@ -1,0 +1,19 @@
+{#
+  Generic "Coming in Phase X" placeholder. Used by every menu destination
+  until the real screens land in Phases 4–7. Routers pass:
+    - title:        H2 heading (e.g. "Add Accounts")
+    - phase_num:    integer phase number where the real screen ships
+    - description:  one-line plain-English description of what's coming
+#}
+{% extends "base.html" %}
+{% block title %}{{ title }} — General Ledger{% endblock %}
+
+{% block content %}
+<h2>{{ title }}</h2>
+
+<p class="notice">
+  Coming in Phase {{ phase_num }}. {{ description }}
+</p>
+
+<p><a href="/menu">← Back to menu</a></p>
+{% endblock %}

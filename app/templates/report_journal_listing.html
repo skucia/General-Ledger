@@ -1,0 +1,173 @@
+{#
+  Journal Listing — transaction-centric report.
+
+  Layout:
+    - Toolbar: form (from_date, to_date, optional account_number with datalist)
+      and Print button (only after submission).
+    - Centred report header: title, company, "From X to Y" optionally prefixed
+      with "Account NNN — Name · " when filtered.
+    - Body: one .journal-block per transaction (chronological), each containing
+      a header line (date / ref / description / posted_by / 📎) and a small
+      lines table with per-block totals.
+    - Footer summary: txn count, attachment count, grand DR, grand CR.
+    - Drill-down modal in range mode (shared partial).
+    - Pre-rendered 📎 links get the click handler attached on page load by
+      account_drilldown.js, so they open the same PDF.js / image viewer
+      that the drill-down popup uses.
+#}
+{% extends "base.html" %}
+{% block title %}Journal Listing — General Ledger{% endblock %}
+
+{% block content %}
+<div class="report-toolbar no-print">
+  <form method="get" action="/reports/journal-listing" class="card jl-form">
+    <div class="txn-header">
+      <label>
+        From date
+        <input type="date" name="from_date" required value="{{ from_date }}" />
+      </label>
+      <label>
+        To date
+        <input type="date" name="to_date" required value="{{ to_date }}" />
+      </label>
+      <label>
+        Account # (optional)
+        <input
+          list="jl-account-numbers"
+          name="account_number"
+          maxlength="20"
+          autocomplete="off"
+          value="{{ filter_account_input|default('') }}"
+        />
+      </label>
+    </div>
+    <button type="submit">Run report</button>
+  </form>
+  {% if submitted %}
+    <button type="button" class="btn-print btn-secondary" onclick="window.print()">Print</button>
+  {% endif %}
+</div>
+
+{# Datalist — populated from the chart of accounts so the user gets typeahead. #}
+<datalist id="jl-account-numbers">
+  {% for a in all_accounts %}
+    <option value="{{ a.account_number }}">{{ a.account_name }}</option>
+  {% endfor %}
+</datalist>
+
+{% if errors %}
+  <ul class="flashes no-print">
+    {% for e in errors %}
+      <li class="flash flash-error">{{ e }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if submitted %}
+<section class="tb-report jl-report" aria-label="Journal Listing report">
+
+  {# Header: separate from the per-block tables — block tables don't repeat
+     this on each page, so we use a single centred header at the top. #}
+  <header class="jl-report-header">
+    <div class="tb-title">Journal Listing</div>
+    <div class="tb-company">{{ company_name }}</div>
+    <div class="tb-as-of">
+      {% if filter_account %}Account {{ filter_account.account_number }} — {{ filter_account.account_name }} · {% endif %}From {{ from_date_parsed|date_dmy }} to {{ to_date_parsed|date_dmy }}
+    </div>
+  </header>
+
+  {% if data.transactions %}
+    {% for txn in data.transactions %}
+      <article class="journal-block">
+        <div class="journal-block-header">
+          <span class="jl-date">{{ txn.date|date_dmy }}</span>
+          <span class="jl-ref">{{ txn.reference }}</span>
+          <span class="jl-desc">{{ txn.description }}</span>
+          <span class="jl-user">posted by {{ txn.posted_by }}</span>
+          {% if txn.attachment_filename %}
+            <a class="attachment-link"
+               href="/attachments/{{ txn.id }}"
+               target="_blank"
+               rel="noopener"
+               title="{{ txn.attachment_filename }}"
+               data-transaction-id="{{ txn.id }}"
+               data-filename="{{ txn.attachment_filename }}">📎</a>
+          {% endif %}
+        </div>
+        <table class="journal-lines">
+          {# colgroup + table-layout:fixed in CSS guarantees every block's
+             table uses identical column widths, regardless of content. #}
+          <colgroup>
+            <col class="col-acct" />
+            <col class="col-name" />
+            <col class="col-dr" />
+            <col class="col-cr" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Account #</th>
+              <th>Account Name</th>
+              <th class="amt">DR</th>
+              <th class="amt">CR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in txn.lines %}
+              <tr {% if filter_account and line.account_number == filter_account.account_number %}class="jl-line-matched"{% endif %}>
+                <td><a href="#" class="tb-drill" data-account="{{ line.account_number }}">{{ line.account_number }}</a></td>
+                <td><a href="#" class="tb-drill" data-account="{{ line.account_number }}">{{ line.account_name }}</a></td>
+                <td class="amt">{{ line.dr_display }}</td>
+                <td class="amt">{{ line.cr_display }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="jl-block-totals">
+              <td colspan="2">Block totals</td>
+              <td class="amt">{{ txn.total_dr_display }}</td>
+              <td class="amt">{{ txn.total_cr_display }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </article>
+    {% endfor %}
+  {% else %}
+    <p class="jl-empty">(No transactions to display)</p>
+  {% endif %}
+
+  {# Footer summary — always rendered (zero counts when empty). #}
+  <div class="jl-summary">
+    <div class="jl-summary-row">
+      <div class="jl-summary-cell">
+        <span class="jl-summary-label">Transactions</span>
+        <span class="jl-summary-value">{{ data.summary.txn_count }}</span>
+      </div>
+      <div class="jl-summary-cell">
+        <span class="jl-summary-label">Attachments</span>
+        <span class="jl-summary-value">{{ data.summary.attachment_count }}</span>
+      </div>
+      <div class="jl-summary-cell">
+        <span class="jl-summary-label">Total DR</span>
+        <span class="jl-summary-value">{{ data.summary.total_dr_display }}</span>
+      </div>
+      <div class="jl-summary-cell">
+        <span class="jl-summary-label">Total CR</span>
+        <span class="jl-summary-value">{{ data.summary.total_cr_display }}</span>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# Drill-down popup in range mode — clicking any account in any line opens
+   period-only activity for that account. #}
+{% set drilldown_to_date = to_date %}
+{% set drilldown_from_date = from_date %}
+{% include "_account_drilldown_modal.html" %}
+
+<p class="report-back-link no-print">
+  <a href="/reports">← Back to Reports</a>
+  &nbsp;·&nbsp;
+  <a href="/menu">Main menu</a>
+</p>
+{% endblock %}

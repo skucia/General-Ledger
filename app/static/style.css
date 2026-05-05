@@ -1,0 +1,908 @@
+/* Tiny stylesheet — keeps forms readable without dragging in a CSS framework. */
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  max-width: 720px;
+  margin: 2em auto;
+  padding: 0 1em;
+  color: #222;
+  line-height: 1.4;
+}
+
+/* Page header — scoped to direct child of body so it doesn't bleed into
+   semantic <header> elements inside reports, modals, etc. */
+body > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: .5em;
+  margin-bottom: 1.5em;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+body > header h1 { margin: 0; font-size: 1.4em; }
+body > header nav {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  font-size: .9em;
+}
+
+h2 { margin-top: 0; }
+
+a { color: #2a5db0; }
+
+form.card {
+  border: 1px solid #ddd;
+  background: #fafafa;
+  padding: 1em 1.25em;
+  border-radius: 6px;
+  max-width: 420px;
+}
+
+form label {
+  display: block;
+  margin: .75em 0;
+  font-size: .95em;
+}
+form input {
+  display: block;
+  padding: .45em .55em;
+  font-size: 1em;
+  width: 100%;
+  margin-top: .25em;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+form input:focus { outline: 2px solid #2a5db0; outline-offset: 1px; }
+
+form button {
+  margin-top: .5em;
+  padding: .5em 1.2em;
+  font-size: 1em;
+  cursor: pointer;
+  background: #2a5db0;
+  color: #fff;
+  border: 1px solid #1f4a8c;
+  border-radius: 4px;
+}
+form button:hover { background: #1f4a8c; }
+form.inline { display: inline; }
+form.inline button {
+  background: #fff;
+  color: #2a5db0;
+  border-color: #2a5db0;
+  padding: .25em .75em;
+  font-size: .9em;
+}
+form.inline button:hover { background: #eef3fb; }
+
+.flashes { list-style: none; padding: 0; margin: 0 0 1em 0; }
+.flash {
+  padding: .6em 1em;
+  border-radius: 4px;
+  margin-bottom: .5em;
+}
+.flash-info    { background: #e7f0ff; border: 1px solid #aac4ff; }
+.flash-success { background: #e6f6e6; border: 1px solid #9bd49b; }
+.flash-error   { background: #fce4e4; border: 1px solid #f3a8a8; }
+
+.notice {
+  background: #fff8d8;
+  padding: .6em 1em;
+  border: 1px solid #e8d27a;
+  border-radius: 4px;
+  margin-bottom: 1em;
+}
+
+ul { padding-left: 1.5em; }
+ul li { margin: .25em 0; }
+
+/* --- Main menu buttons (Phase 3) --- */
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: .5em;
+  margin: 1.5em 0;
+  max-width: 480px;
+}
+
+.menu-button-form { margin: 0; }
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: .9em 1.25em;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #222;
+  font-size: 1.05em;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.menu-button:hover {
+  background: #f3f6fb;
+  border-color: #2a5db0;
+}
+.menu-button .menu-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  border-radius: 50%;
+  background: #2a5db0;
+  color: #fff;
+  font-weight: bold;
+  font-size: .9em;
+  flex-shrink: 0;
+}
+.menu-button .menu-label { flex: 1; }
+.menu-button .menu-hint {
+  font-size: .8em;
+  color: #777;
+  font-style: italic;
+}
+.menu-button--logout .menu-num { background: #888; }
+
+.menu-footer {
+  margin-top: 2em;
+  font-size: .9em;
+  color: #555;
+}
+
+/* --- Add Users screen (Phase 4) --- */
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: .5em 0 1.5em;
+  font-size: .9em;
+}
+.users-table th,
+.users-table td {
+  padding: .45em .65em;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+.users-table th { background: #f4f6fa; }
+.users-table tbody tr:hover { background: #fafbfd; }
+
+label.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: .5em;
+  font-size: .95em;
+}
+label.checkbox-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+/* --- Add Accounts screen (Phase 5) --- */
+
+.account-group-heading {
+  margin: 1.5em 0 .25em;
+  padding: .25em .5em;
+  background: #f4f6fa;
+  border-left: 4px solid #2a5db0;
+  font-size: .95em;
+}
+
+.accounts-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 .5em;
+  font-size: .9em;
+}
+.accounts-table th,
+.accounts-table td {
+  padding: .35em .6em;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+.accounts-table th { background: #fafbfd; }
+
+form select {
+  display: block;
+  padding: .45em .55em;
+  font-size: 1em;
+  width: 100%;
+  margin-top: .25em;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+}
+form select:focus { outline: 2px solid #2a5db0; outline-offset: 1px; }
+
+/* --- Add Transaction screen (Phase 6) --- */
+
+form.txn-form { max-width: 700px; }
+
+.txn-header {
+  display: flex;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+.txn-header label { flex: 1 1 200px; min-width: 0; }
+
+.lines-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: .5em 0 1em;
+  font-size: .95em;
+}
+.lines-table th,
+.lines-table td {
+  padding: .35em .4em;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+.lines-table th { background: #fafbfd; text-align: left; }
+
+.lines-table input,
+.lines-table select {
+  width: 100%;
+  padding: .35em .45em;
+  font-size: .95em;
+  margin: 0;
+}
+
+.lines-table .totals-row {
+  background: #f4f6fa;
+  font-size: .95em;
+}
+.lines-table .totals-row td { padding: .5em .4em; }
+
+.diff-balanced { color: #1b7f1b; font-weight: bold; }
+.diff-unbalanced { color: #b03030; font-weight: bold; }
+
+.btn-secondary {
+  background: #fff;
+  color: #2a5db0;
+  border: 1px solid #2a5db0;
+  padding: .35em .9em;
+  font-size: .95em;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-secondary:hover { background: #eef3fb; }
+
+.lines-table .btn-remove-line {
+  background: #fff;
+  color: #b03030;
+  border: 1px solid #d99;
+  padding: .25em .6em;
+  font-size: .85em;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.lines-table .btn-remove-line:hover { background: #fdecec; }
+
+.txn-actions { margin-top: 1.25em; }
+.txn-actions button { padding: .55em 1.4em; font-size: 1.05em; }
+
+/* --- Reports stubs (Phase 7) --- */
+
+.report-stub {
+  margin: 1.5em 0;
+  padding: 1em 1.25em;
+  background: #f4f6fa;
+  border: 1px solid #d6def0;
+  border-radius: 6px;
+  color: #444;
+}
+.report-stub p { margin: .25em 0; }
+
+/* --- Trial Balance report --- */
+
+.report-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 1em;
+  flex-wrap: wrap;
+  margin-bottom: 1em;
+}
+.tb-form { margin: 0; }
+.btn-print { margin-top: .5em; }
+
+.tb-report {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1.5em 1.5em 1em;
+  margin: 1em 0;
+}
+
+/* Report header — lives inside the table's <thead> as a single colspan-4
+   cell so browsers repeat it on every printed page when the table spans
+   multiple pages. The !important overrides are because the surrounding
+   .tb-table th rules (cell background, padding, etc.) would otherwise
+   make this look like a column header. */
+.tb-heading-cell {
+  background: #fff !important;
+  text-align: center !important;
+  border-bottom: 1px solid #eee !important;
+  padding: 1.25em 1em !important;
+  font-weight: normal !important;
+}
+.tb-heading-cell .tb-title {
+  font-size: 1.7em;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 .35em;
+}
+.tb-heading-cell .tb-company {
+  font-size: 1.05em;
+  color: #333;
+  margin: 0 0 .25em;
+}
+.tb-heading-cell .tb-as-of {
+  font-size: .95em;
+  color: #555;
+  margin: 0;
+}
+
+.tb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .95em;
+}
+/* Generous horizontal padding so columns don't crowd each other. */
+.tb-table th,
+.tb-table td {
+  padding: 10px 20px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+.tb-table th { background: #f4f6fa; }
+.tb-table td.amt,
+.tb-table th.amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tb-table tbody tr:hover { background: #fafbfd; }
+
+.tb-table a.tb-drill { color: #2a5db0; text-decoration: none; }
+.tb-table a.tb-drill:hover { text-decoration: underline; }
+
+/* Totals row stands out clearly from the data rows above. */
+.tb-totals {
+  background: #eef2f7;
+  border-top: 2px solid #2a5db0;
+}
+.tb-totals td {
+  padding: 14px 20px;
+  border-bottom: none;
+  font-size: 1.02em;
+  font-weight: 700;
+  color: #222;
+}
+.tb-totals--imbalanced {
+  background: #fce4e4;
+  border-top-color: #b03030;
+}
+.tb-imbalance-warning {
+  font-weight: bold;
+  margin-top: 1em;
+}
+
+.tb-empty {
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  padding: 1em !important;
+}
+
+/* --- Balance Sheet --- */
+
+/* Section heading band — full-width tinted row inside the table.
+   Lighter than a subtotal but distinct from data rows. */
+.bs-section-heading td {
+  background: #eef2f7;
+  font-weight: 700;
+  letter-spacing: .04em;
+  font-size: .9em;
+  color: #2a5db0;
+  padding: 10px 20px !important;
+  border-bottom: 1px solid #d6def0;
+}
+
+/* "(none)" placeholder when a section has no accounts. */
+.bs-section-empty {
+  font-style: italic;
+  color: #888;
+  text-align: center;
+  padding: 8px 20px !important;
+}
+
+/* Section subtotal rows (Total Assets / Liabilities / Equity / Equity incl. P/L). */
+.bs-subtotal td {
+  background: #f4f6fa;
+  border-top: 1px solid #c8d1e2;
+  border-bottom: 1px solid #c8d1e2;
+  padding: 12px 20px !important;
+  font-size: 1em;
+  color: #222;
+}
+
+/* Profit / (Loss) for the period row — italic label, top border to set
+   it apart from the Equity entries above. NOT a subtotal — lighter weight. */
+.bs-pl-row td {
+  background: #fff;
+  border-top: 2px solid #2a5db0;
+  padding: 10px 20px !important;
+}
+.bs-pl-row.bs-loss td.amt {
+  color: #b03030;
+  font-weight: 700;
+}
+
+/* --- Journal Listing ---------------------------------------------------- */
+
+.jl-form .txn-header { gap: 1em; }
+
+/* Centred header at the top of the report; sits above the per-transaction
+   blocks. We don't repeat it on every printed page (each block is short
+   enough that the report header at the top is visible context). */
+.jl-report-header {
+  display: block;
+  text-align: center;
+  padding: 1.25em 1em 1em;
+  margin-bottom: 1em;
+  border-bottom: 1px solid #eee;
+}
+.jl-report-header .tb-title    { font-size: 1.7em; font-weight: 700; color: #222; margin: 0 0 .35em; }
+.jl-report-header .tb-company  { font-size: 1.05em; color: #333; margin: 0 0 .25em; }
+.jl-report-header .tb-as-of    { font-size: .95em; color: #555; margin: 0; }
+
+.journal-block {
+  margin: 1em 0;
+  padding: .75em 1em 1em;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  /* Hint to the browser to keep each transaction together when printing. */
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.journal-block-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+  flex-wrap: wrap;
+  padding-bottom: .5em;
+  margin-bottom: .5em;
+  border-bottom: 1px solid #eee;
+}
+.journal-block-header .jl-date {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.journal-block-header .jl-ref {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .9em;
+  background: #eef2f7;
+  padding: .1em .55em;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.journal-block-header .jl-desc {
+  flex: 1;
+  min-width: 200px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.journal-block-header .jl-user {
+  color: #777;
+  font-size: .9em;
+  white-space: nowrap;
+  font-style: italic;
+}
+.journal-block-header .attachment-link {
+  text-decoration: none;
+  font-size: 1.1em;
+  display: inline-block;
+  line-height: 1;
+}
+.journal-block-header .attachment-link:hover { transform: scale(1.15); }
+
+.journal-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .92em;
+  /* Fixed layout so every block's table uses the same column widths
+     defined on the colgroup below — content can't bend the columns. */
+  table-layout: fixed;
+}
+/* Explicit column widths shared across every .journal-lines table on the
+   page. The Account Name column is `auto` and absorbs whatever space is
+   left after the fixed-width columns. */
+.journal-lines col.col-acct { width: 130px; }
+.journal-lines col.col-name { width: auto;  }
+.journal-lines col.col-dr   { width: 150px; }
+.journal-lines col.col-cr   { width: 150px; }
+
+.journal-lines th,
+.journal-lines td {
+  padding: 6px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+  /* With fixed layout, long account names can otherwise push to overflow.
+     Wrap inside the cell instead. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.journal-lines th { background: #fafbfd; }
+.journal-lines th.amt,
+.journal-lines td.amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.journal-lines a.tb-drill { color: #2a5db0; text-decoration: none; }
+.journal-lines a.tb-drill:hover { text-decoration: underline; }
+
+/* Subtle highlight for lines whose account matches the active filter. */
+.jl-line-matched td { background: #e7f1ff; }
+
+/* Per-block totals — small, light, low-contrast. They confirm the block
+   balances without competing visually with the data rows. */
+.jl-block-totals td {
+  background: #f7f9fc;
+  font-size: .85em;
+  color: #555;
+  border-bottom: none;
+  padding: 6px 14px;
+  font-style: italic;
+}
+
+.jl-empty {
+  background: #fafafa;
+  border: 1px dashed #ccc;
+  padding: 2em !important;
+  margin: 1.5em 0;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  border-radius: 6px;
+}
+
+.jl-summary {
+  margin-top: 1.5em;
+  padding: 1em 1.25em;
+  background: #f4f6fa;
+  border: 1px solid #d6def0;
+  border-radius: 6px;
+}
+.jl-summary-row {
+  display: flex;
+  gap: 2em;
+  flex-wrap: wrap;
+  justify-content: space-around;
+}
+.jl-summary-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 110px;
+}
+.jl-summary-label {
+  font-size: .8em;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.jl-summary-value {
+  font-weight: 700;
+  font-size: 1.1em;
+  font-variant-numeric: tabular-nums;
+  color: #222;
+}
+
+/* --- P&L bottom-line row -----------------------------------------------
+   Distinct from the Balance Sheet's lighter .bs-pl-row. The P&L's bottom
+   line is the report's headline number, so the label is bold (not italic)
+   and we put a clear top-border separator above. On a loss, the amount
+   cell goes red + italic per spec. */
+.pl-result-row td {
+  background: #fff;
+  border-top: 2px solid #2a5db0;
+  padding: 14px 20px !important;
+  font-size: 1.05em;
+  color: #222;
+}
+.pl-result-row.pl-loss td.amt {
+  color: #b03030;
+  font-style: italic;
+}
+
+/* Balance-check footer panel — two values side by side under the table. */
+.bs-balance-check {
+  display: flex;
+  gap: 1.5em;
+  align-items: center;
+  margin-top: 1.25em;
+  padding: 1em 1.25em;
+  background: #f9fbfd;
+  border: 1px solid #d6def0;
+  border-radius: 6px;
+}
+.bs-balance-side { flex: 1; }
+.bs-balance-label {
+  font-size: .85em;
+  color: #555;
+  margin-bottom: .25em;
+}
+.bs-balance-value {
+  font-weight: 700;
+  font-size: 1.05em;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.bs-balance-equals {
+  font-size: 1.4em;
+  font-weight: 700;
+  color: #2a5db0;
+}
+.bs-balance-check--imbalanced {
+  background: #fce4e4;
+  border-color: #f3a8a8;
+}
+.bs-balance-check--imbalanced .bs-balance-value,
+.bs-balance-check--imbalanced .bs-balance-equals {
+  color: #b03030;
+}
+
+/* --- Drill-down modal (native <dialog>) --- */
+
+dialog.account-modal {
+  width: min(820px, 92vw);
+  max-height: 85vh;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .3);
+}
+dialog.account-modal::backdrop {
+  background: rgba(0, 0, 0, .35);
+}
+dialog.account-modal .dialog-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .75em 1em;
+  border-bottom: 1px solid #eee;
+  background: #f4f6fa;
+}
+.modal-header h3 { margin: 0; font-size: 1.1em; }
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.4em;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 0 .25em;
+}
+.modal-close:hover { color: #000; }
+
+.modal-subtitle {
+  margin: .5em 1em;
+  color: #555;
+  font-size: .9em;
+}
+
+.modal-body {
+  padding: 0 1em 1em;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9em;
+}
+.detail-table th,
+.detail-table td {
+  padding: 8px 18px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+.detail-table th {
+  background: #fafbfd;
+  position: sticky;
+  top: 0;
+}
+.detail-table th.amt,
+.detail-table td.amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Reference cell — slightly more compact and a touch greyer so it doesn't
+   compete with the description column. Reference values are short. */
+.detail-table td.ref-cell {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .9em;
+  color: #444;
+  white-space: nowrap;
+}
+
+/* Attachment column — narrow icon-only column at the right edge. */
+.detail-table th.att-col,
+.detail-table td.att-col {
+  width: 2em;
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.detail-table a.attachment-link {
+  text-decoration: none;
+  font-size: 1.1em;
+  display: inline-block;
+  line-height: 1;
+}
+.detail-table a.attachment-link:hover {
+  transform: scale(1.15);
+}
+
+/* --- Attachment viewer modal --------------------------------------------
+   Sits on top of the drill-down modal when a 📎 link is clicked.
+   Larger than the drill-down to give PDFs / images real estate. */
+
+dialog.attachment-viewer {
+  width: min(92vw, 1200px);
+  height: 90vh;
+  max-height: 90vh;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, .35);
+}
+dialog.attachment-viewer::backdrop {
+  background: rgba(0, 0, 0, .55);
+}
+dialog.attachment-viewer .dialog-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+dialog.attachment-viewer .modal-header h3 {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1em;
+  word-break: break-all;
+  flex: 1;
+  margin-right: 1em;
+}
+
+.viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: .75em;
+  flex-shrink: 0;
+}
+.viewer-actions a.btn-secondary {
+  text-decoration: none;
+  padding: .35em .75em;
+}
+
+.viewer-body {
+  flex: 1;
+  min-height: 0;     /* let flex children shrink */
+  overflow: auto;
+  padding: 0;
+  background: #2b2b2b;   /* dark canvas behind the file */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.viewer-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+.viewer-body img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .2);
+}
+
+.viewer-fallback {
+  background: #fff;
+  padding: 2em 2.5em;
+  border-radius: 6px;
+  text-align: center;
+  max-width: 480px;
+}
+.viewer-fallback p { margin: .5em 0; }
+
+/* PDF.js canvas rendering — stacked pages with a touch of card shadow. */
+.pdf-pages {
+  padding: 1.25em 1em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25em;
+  width: 100%;
+}
+canvas.pdf-page {
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  max-width: 100%;
+  height: auto;
+}
+
+/* --- Print rules ---
+   Hide all interactive UI; print only the report itself with nice page
+   margins. "Page N of M" is rendered via @page @bottom-center which works
+   in Chrome/Edge/Firefox; Safari may not honour it (workaround: enable
+   browser-native headers/footers in the print dialog).
+*/
+@media print {
+  body { margin: 0; color: #000; }
+
+  /* IMPORTANT: scope `body > header` so we only hide the page-level
+     navigation header, NOT the semantic <header>/<thead> blocks inside
+     the report (those carry the report title/company/as-of). */
+  body > header,
+  .no-print,
+  .menu-footer,
+  .flashes,
+  dialog,
+  .report-back-link,
+  .report-toolbar { display: none !important; }
+
+  .tb-report {
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+  .tb-table tbody tr:hover { background: transparent; }
+  a.tb-drill {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  /* Repeat the table head (which now contains the report title block AND
+     the column-label row) on every printed page. table-header-group is
+     the default for <thead>, but we set it explicitly so any browser
+     extension or override can't accidentally remove it. */
+  .tb-table thead { display: table-header-group; }
+
+  /* Avoid splitting individual rows across page breaks. */
+  .tb-table tr { page-break-inside: avoid; break-inside: avoid; }
+
+  @page {
+    margin: 1in;
+    @bottom-center {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+      color: #555;
+    }
+  }
+}

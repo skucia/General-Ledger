@@ -1,0 +1,40 @@
+{#
+  Reports landing menu (Phase 7). Three numbered buttons for the three
+  reports defined in the spec, plus a back link to the main menu. Reuses
+  the .menu-button styling from the main /menu screen.
+#}
+{% extends "base.html" %}
+{% block title %}Reports — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Reports</h2>
+<p>Choose a report to run. (Report logic is being specified — for now each report shows a stub panel after you submit a date.)</p>
+
+<nav class="menu-buttons">
+  <a class="menu-button" href="/reports/trial-balance">
+    <span class="menu-num">1</span>
+    <span class="menu-label">Trial Balance</span>
+    <span class="menu-hint">As of a single date</span>
+  </a>
+
+  <a class="menu-button" href="/reports/profit-and-loss">
+    <span class="menu-num">2</span>
+    <span class="menu-label">Profit &amp; Loss</span>
+    <span class="menu-hint">For a date range</span>
+  </a>
+
+  <a class="menu-button" href="/reports/balance-sheet">
+    <span class="menu-num">3</span>
+    <span class="menu-label">Balance Sheet</span>
+    <span class="menu-hint">As of a single date</span>
+  </a>
+
+  <a class="menu-button" href="/reports/journal-listing">
+    <span class="menu-num">4</span>
+    <span class="menu-label">Journal Listing</span>
+    <span class="menu-hint">All transactions in a date range, optionally filtered by account</span>
+  </a>
+</nav>
+
+<p><a href="/menu">← Back to main menu</a></p>
+{% endblock %}

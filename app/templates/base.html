@@ -1,0 +1,46 @@
+{#
+  Shared layout. Every other template extends this one. Provides:
+    - the HTML document shell + CSS link
+    - a top header showing who you're logged in as + Logout button
+    - a flash-message banner area populated by templating.flash()
+    - a `content` block that child templates fill in
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}General Ledger{% endblock %}</title>
+  <link rel="stylesheet" href="{{ versioned_static('style.css') }}" />
+</head>
+<body>
+  <header>
+    <h1>General Ledger</h1>
+    {% if user %}
+      <nav>
+        <span>
+          Logged in as <strong>{{ user.username }}</strong>
+          {% if user.is_admin %}<em>(admin)</em>{% endif %}
+        </span>
+        <form method="post" action="/logout" class="inline">
+          <button type="submit">Logout</button>
+        </form>
+      </nav>
+    {% endif %}
+  </header>
+
+  <main>
+    {# Pop and render any one-time flash messages from the session. #}
+    {% set messages = get_flashed_messages(request) %}
+    {% if messages %}
+      <ul class="flashes">
+        {% for m in messages %}
+          <li class="flash flash-{{ m.category }}">{{ m.message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

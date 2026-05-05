@@ -1,0 +1,65 @@
+{#
+  Main menu (post-login landing page).
+
+  Visibility rules (decided in spec discussion):
+    - is_admin=TRUE        -> shows the "Add Users" button
+    - user_type='view'     -> still sees the same buttons but a yellow
+                              banner warns submissions will be blocked on
+                              Add Accounts / Add Transactions
+    - Logout appears both in the header (every page) AND as button #5 on
+      this menu, matching the spec's literal 5-button list.
+#}
+{% extends "base.html" %}
+{% block title %}Menu — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Welcome, {{ user.username }}</h2>
+
+{% if user.user_type == 'view' %}
+  <p class="notice">
+    You are signed in as a <strong>view-only</strong> user. You can browse
+    every screen, but submissions on Add Accounts and Add Transactions will
+    be blocked. Reports remain available.
+  </p>
+{% endif %}
+
+<nav class="menu-buttons">
+  {% if user.is_admin %}
+    <a class="menu-button" href="/users/new">
+      <span class="menu-num">1</span>
+      <span class="menu-label">Add Users</span>
+      <span class="menu-hint">admin only</span>
+    </a>
+  {% endif %}
+
+  <a class="menu-button" href="/accounts/new">
+    <span class="menu-num">{% if user.is_admin %}2{% else %}1{% endif %}</span>
+    <span class="menu-label">Add Accounts</span>
+  </a>
+
+  <a class="menu-button" href="/transactions/new">
+    <span class="menu-num">{% if user.is_admin %}3{% else %}2{% endif %}</span>
+    <span class="menu-label">Add Transactions</span>
+  </a>
+
+  <a class="menu-button" href="/reports">
+    <span class="menu-num">{% if user.is_admin %}4{% else %}3{% endif %}</span>
+    <span class="menu-label">Run Reports</span>
+  </a>
+
+  {# Logout submitted as POST so it can't be triggered by an accidental link click. #}
+  <form method="post" action="/logout" class="menu-button-form">
+    <button type="submit" class="menu-button menu-button--logout">
+      <span class="menu-num">{% if user.is_admin %}5{% else %}4{% endif %}</span>
+      <span class="menu-label">Logout</span>
+    </button>
+  </form>
+</nav>
+
+<p class="menu-footer">
+  <a href="/change-password">Change my password</a>
+  {% if user.is_admin %}
+    &nbsp;·&nbsp; <a href="/admin/reset-password">Reset another user's password</a>
+  {% endif %}
+</p>
+{% endblock %}

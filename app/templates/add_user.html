@@ -1,0 +1,98 @@
+{#
+  Add Users screen (admin-only).
+
+  Layout:
+    - "New user" form at the top (the actual Phase 4 deliverable).
+    - "Existing users" table below so the admin can see who's there and
+      jump to the password-reset flow per row (except for the row that
+      represents the admin themselves — they use Change Password instead).
+#}
+{% extends "base.html" %}
+{% block title %}Add Users — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Add Users</h2>
+
+<h3>New user</h3>
+<form method="post" action="/users/new" class="card">
+  <label>
+    Username
+    <input
+      name="username"
+      required
+      maxlength="30"
+      pattern="[A-Za-z0-9_\-]+"
+      title="Letters, digits, underscore or hyphen, up to 30 characters"
+      autofocus
+    />
+  </label>
+
+  <label>
+    Email
+    <input name="email" type="email" required />
+  </label>
+
+  <label>
+    User type
+    <select name="user_type" required>
+      <option value="full">Full (can submit changes)</option>
+      <option value="view">View-only (read-only / Reports only)</option>
+    </select>
+  </label>
+
+  <label class="checkbox-row">
+    <input name="is_admin" type="checkbox" value="1" />
+    Admin — can add users and reset other users' passwords
+  </label>
+
+  <label>
+    Temporary password (min 8 characters)
+    <input name="password" type="password" required minlength="8" autocomplete="new-password" />
+  </label>
+
+  <label>
+    Confirm temporary password
+    <input name="confirm_password" type="password" required minlength="8" autocomplete="new-password" />
+  </label>
+
+  <button type="submit">Create user</button>
+</form>
+
+<h3>Existing users</h3>
+{% if existing_users %}
+<table class="users-table">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Email</th>
+      <th>Type</th>
+      <th>Admin</th>
+      <th>Created</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in existing_users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.user_type }}</td>
+        <td>{% if u.is_admin %}yes{% else %}no{% endif %}</td>
+        <td>{{ u.created_at|date_dmy }}</td>
+        <td>
+          {# Hide reset link for the currently logged-in admin row — they
+             use Change Password instead. Same rule the admin reset form enforces. #}
+          {% if u.id != user.id %}
+            <a href="/admin/reset-password?username={{ u.username }}">Reset password</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p><em>No users yet.</em></p>
+{% endif %}
+
+<p><a href="/menu">← Back to menu</a></p>
+{% endblock %}

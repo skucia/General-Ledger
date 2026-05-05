@@ -1,0 +1,23 @@
+# Versions chosen to work on Python 3.9 (the system Python on this Mac).
+# If you upgrade to Python 3.11+ later you can bump these freely.
+
+# Web framework
+fastapi==0.111.1
+uvicorn[standard]==0.30.6
+
+# Templates and form/file handling for FastAPI
+jinja2==3.1.4
+python-multipart==0.0.9
+
+# Postgres driver (v3) with the C extension for speed
+psycopg[binary]==3.1.18
+
+# Password hashing
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+
+# Config loader
+python-dotenv==1.0.1
+
+# Session middleware (used in Phase 2)
+itsdangerous==2.2.0

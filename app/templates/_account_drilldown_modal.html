@@ -1,0 +1,64 @@
+{#
+  Account drill-down modal — included by every report that supports
+  clickable account links (Trial Balance, Balance Sheet, P&L).
+
+  Each report sets `drilldown_to_date` (always) and `drilldown_from_date`
+  (empty for TB/BS up-to mode; ISO string for P&L range mode) via
+  {% set %} just before {% include %}. The JS reads these attributes,
+  builds a query string, and the shared /reports/account-detail endpoint
+  decides which mode based on whether from_date is present.
+
+  The matching JS lives in /static/account_drilldown.js.
+#}
+<dialog id="account-modal" class="account-modal no-print"
+        data-to-date="{{ drilldown_to_date|default('') }}"
+        data-from-date="{{ drilldown_from_date|default('') }}">
+  <div class="dialog-content">
+    <header class="modal-header">
+      <h3 id="modal-title">Account</h3>
+      <button type="button" class="modal-close" aria-label="Close">×</button>
+    </header>
+    <p id="modal-subtitle" class="modal-subtitle"></p>
+    <div class="modal-body">
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Reference</th>
+            <th>Description</th>
+            <th class="amt">DR</th>
+            <th class="amt">CR</th>
+            <th class="amt">Balance</th>
+            <th class="att-col" aria-label="Attachment"></th>
+          </tr>
+        </thead>
+        <tbody id="modal-tbody"></tbody>
+      </table>
+      <p id="modal-empty" class="tb-empty" hidden>(No transactions for this account)</p>
+    </div>
+  </div>
+</dialog>
+{# Attachment viewer modal — opened on top of the drill-down modal when a
+   📎 link is clicked. Native <dialog> supports stacking via showModal();
+   closing this returns control to the drill-down modal underneath. The
+   "Open in new tab" link is a fallback for any file the in-page viewer
+   can't render. #}
+<dialog id="attachment-viewer" class="attachment-viewer no-print">
+  <div class="dialog-content">
+    <header class="modal-header">
+      <h3 id="viewer-title">Attachment</h3>
+      <div class="viewer-actions">
+        <a id="viewer-newtab" href="#" target="_blank" rel="noopener" class="btn-secondary">
+          Open in new tab
+        </a>
+        <button type="button" class="modal-close" aria-label="Close">×</button>
+      </div>
+    </header>
+    <div class="viewer-body" id="viewer-body">
+      {# JS injects either an iframe (PDFs), an img (images), or a small
+         fallback panel here. #}
+    </div>
+  </div>
+</dialog>
+
+<script src="{{ versioned_static('account_drilldown.js') }}"></script>

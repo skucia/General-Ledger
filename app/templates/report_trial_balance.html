@@ -1,0 +1,116 @@
+{#
+  Trial Balance — real implementation.
+
+  Layout:
+    1. Toolbar: form (As-of date + Run report) and Print button (only after a report is loaded).
+    2. Report body (only when submitted):
+        - centred header (title, company name, "As of dd/mm/yyyy")
+        - 4-column table (Account Number / Name / DR / CR)
+        - totals row, with a red banner if DR != CR
+    3. Drill-down modal: native <dialog>. Filled by JS via /reports/trial-balance/account/{n}.
+    4. @media print rules in style.css hide the toolbar, modal, links — only the report itself prints.
+
+  Drill-down JS:
+    - Each account number/name is a link with data-account="..."
+    - Click → fetch JSON → render modal table → showModal()
+    - Esc / X / click-on-backdrop close
+    - Underlying page does not scroll while modal open (native dialog behavior)
+#}
+{% extends "base.html" %}
+{% block title %}Trial Balance — General Ledger{% endblock %}
+
+{% block content %}
+<div class="report-toolbar no-print">
+  <form method="get" action="/reports/trial-balance" class="card tb-form">
+    <label>
+      As of date
+      <input type="date" name="as_of" required value="{{ as_of }}" />
+    </label>
+    <button type="submit">Run report</button>
+  </form>
+  {% if submitted %}
+    <button type="button" class="btn-print btn-secondary" onclick="window.print()">Print</button>
+  {% endif %}
+</div>
+
+{% if errors %}
+  <ul class="flashes no-print">
+    {% for e in errors %}
+      <li class="flash flash-error">{{ e }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if submitted %}
+<section class="tb-report" aria-label="Trial Balance report">
+  <table class="tb-table">
+    {# Report header lives inside <thead>. Browsers repeat <thead> rows on
+       every printed page when the table spans multiple pages, which gives
+       us "header on every page" for free. #}
+    <thead>
+      <tr class="tb-heading-row">
+        <th colspan="4" class="tb-heading-cell">
+          <div class="tb-title">Trial Balance</div>
+          <div class="tb-company">{{ company_name }}</div>
+          <div class="tb-as-of">As of {{ as_of_parsed|date_dmy }}</div>
+        </th>
+      </tr>
+      <tr>
+        <th>Account Number</th>
+        <th>Account Name</th>
+        <th class="amt">DR</th>
+        <th class="amt">CR</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if rows %}
+        {% for r in rows %}
+        <tr>
+          <td>
+            <a href="#" class="tb-drill" data-account="{{ r.account_number }}">
+              {{ r.account_number }}
+            </a>
+          </td>
+          <td>
+            <a href="#" class="tb-drill" data-account="{{ r.account_number }}">
+              {{ r.account_name }}
+            </a>
+          </td>
+          <td class="amt">{{ r.dr_display }}</td>
+          <td class="amt">{{ r.cr_display }}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="4" class="tb-empty">(No transactions to display)</td>
+        </tr>
+      {% endif %}
+    </tbody>
+    <tfoot>
+      <tr class="tb-totals {% if not balanced %}tb-totals--imbalanced{% endif %}">
+        <td colspan="2"><strong>Totals</strong></td>
+        <td class="amt"><strong>{{ total_dr_display }}</strong></td>
+        <td class="amt"><strong>{{ total_cr_display }}</strong></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  {% if not balanced %}
+    <p class="flash flash-error tb-imbalance-warning">
+      Trial balance does not balance — please contact support.
+    </p>
+  {% endif %}
+</section>
+{% endif %}
+
+{# Up-to mode (no from_date) — the TB drill-down shows cumulative history. #}
+{% set drilldown_to_date = as_of %}
+{% set drilldown_from_date = '' %}
+{% include "_account_drilldown_modal.html" %}
+
+<p class="report-back-link no-print">
+  <a href="/reports">← Back to Reports</a>
+  &nbsp;·&nbsp;
+  <a href="/menu">Main menu</a>
+</p>
+{% endblock %}

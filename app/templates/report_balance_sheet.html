@@ -1,0 +1,171 @@
+{#
+  Balance Sheet — real implementation.
+
+  Layout mirrors Trial Balance:
+    1. Toolbar (form + Print) — hidden in print.
+    2. Single table with title block in <thead> (so it repeats on every printed page),
+       then three sections (Assets / Liabilities / Equity), the calculated P/L row,
+       and the "Total Equity including current period result" subtotal.
+    3. Below the table, a balance-check footer comparing Total Assets vs
+       Total Liabilities + Equity (incl. P/L). Red banner if they differ.
+    4. Drill-down modal (shared partial) for clicking individual accounts.
+
+  All amounts use parentheses for negatives, e.g. "(1,234.56)", consistent
+  with accounting convention.
+#}
+{% extends "base.html" %}
+{% block title %}Balance Sheet — General Ledger{% endblock %}
+
+{% block content %}
+<div class="report-toolbar no-print">
+  <form method="get" action="/reports/balance-sheet" class="card tb-form">
+    <label>
+      As of date
+      <input type="date" name="as_of" required value="{{ as_of }}" />
+    </label>
+    <button type="submit">Run report</button>
+  </form>
+  {% if submitted %}
+    <button type="button" class="btn-print btn-secondary" onclick="window.print()">Print</button>
+  {% endif %}
+</div>
+
+{% if errors %}
+  <ul class="flashes no-print">
+    {% for e in errors %}
+      <li class="flash flash-error">{{ e }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if submitted %}
+<section class="tb-report bs-report" aria-label="Balance Sheet report">
+  <table class="tb-table bs-table">
+    <thead>
+      <tr class="tb-heading-row">
+        <th colspan="3" class="tb-heading-cell">
+          <div class="tb-title">Balance Sheet</div>
+          <div class="tb-company">{{ company_name }}</div>
+          <div class="tb-as-of">As of {{ as_of_parsed|date_dmy }}</div>
+        </th>
+      </tr>
+      <tr>
+        <th>Account Number</th>
+        <th>Account Name</th>
+        <th class="amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if data.is_empty %}
+        {# Total emptiness: single note, all sections collapsed. #}
+        <tr><td colspan="3" class="tb-empty">(No transactions to display)</td></tr>
+      {% else %}
+
+        {# ---------- ASSETS ---------- #}
+        <tr class="bs-section-heading"><td colspan="3">ASSETS</td></tr>
+        {% if data.assets %}
+          {% for a in data.assets %}
+            <tr>
+              <td><a href="#" class="tb-drill" data-account="{{ a.account_number }}">{{ a.account_number }}</a></td>
+              <td><a href="#" class="tb-drill" data-account="{{ a.account_number }}">{{ a.account_name }}</a></td>
+              <td class="amt">{{ a.balance_display }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3" class="bs-section-empty">(none)</td></tr>
+        {% endif %}
+        <tr class="bs-subtotal">
+          <td colspan="2"><strong>Total Assets</strong></td>
+          <td class="amt"><strong>{{ data.total_assets_display }}</strong></td>
+        </tr>
+
+        {# ---------- LIABILITIES ---------- #}
+        <tr class="bs-section-heading"><td colspan="3">LIABILITIES</td></tr>
+        {% if data.liabilities %}
+          {% for l in data.liabilities %}
+            <tr>
+              <td><a href="#" class="tb-drill" data-account="{{ l.account_number }}">{{ l.account_number }}</a></td>
+              <td><a href="#" class="tb-drill" data-account="{{ l.account_number }}">{{ l.account_name }}</a></td>
+              <td class="amt">{{ l.balance_display }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3" class="bs-section-empty">(none)</td></tr>
+        {% endif %}
+        <tr class="bs-subtotal">
+          <td colspan="2"><strong>Total Liabilities</strong></td>
+          <td class="amt"><strong>{{ data.total_liabilities_display }}</strong></td>
+        </tr>
+
+        {# ---------- EQUITY ---------- #}
+        <tr class="bs-section-heading"><td colspan="3">EQUITY</td></tr>
+        {% if data.equity %}
+          {% for e in data.equity %}
+            <tr>
+              <td><a href="#" class="tb-drill" data-account="{{ e.account_number }}">{{ e.account_number }}</a></td>
+              <td><a href="#" class="tb-drill" data-account="{{ e.account_number }}">{{ e.account_name }}</a></td>
+              <td class="amt">{{ e.balance_display }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3" class="bs-section-empty">(none)</td></tr>
+        {% endif %}
+        <tr class="bs-subtotal">
+          <td colspan="2"><strong>Total Equity</strong></td>
+          <td class="amt"><strong>{{ data.total_equity_display }}</strong></td>
+        </tr>
+
+        {# ---------- Profit / (Loss) for the period ----------
+           Calculated, NOT clickable. Italic label. Loss in parentheses + red.
+           Account Number column is left blank because this is a derived row. #}
+        <tr class="bs-pl-row {% if data.profit_or_loss < 0 %}bs-loss{% endif %}">
+          <td></td>
+          <td><em>Profit / (Loss) for the period</em></td>
+          <td class="amt">{{ data.profit_or_loss_display }}</td>
+        </tr>
+
+        {# ---------- Total Equity incl. current period result ---------- #}
+        <tr class="bs-subtotal">
+          <td colspan="2"><strong>Total Equity including current period result</strong></td>
+          <td class="amt"><strong>{{ data.total_equity_with_pl_display }}</strong></td>
+        </tr>
+
+      {% endif %}
+    </tbody>
+  </table>
+
+  {# ---------- Balance check ----------
+     Under balanced double-entry posting these two values are mathematically
+     guaranteed to match. The check exists to flag any data-integrity issue
+     introduced outside the app (e.g. someone editing rows directly in psql). #}
+  <div class="bs-balance-check {% if not data.balanced %}bs-balance-check--imbalanced{% endif %}">
+    <div class="bs-balance-side">
+      <div class="bs-balance-label">Total Assets</div>
+      <div class="bs-balance-value">{{ data.total_assets_display }}</div>
+    </div>
+    <div class="bs-balance-equals">=</div>
+    <div class="bs-balance-side">
+      <div class="bs-balance-label">Total Liabilities + Equity (incl. current period result)</div>
+      <div class="bs-balance-value">{{ data.total_liab_eq_pl_display }}</div>
+    </div>
+  </div>
+
+  {% if not data.balanced %}
+    <p class="flash flash-error tb-imbalance-warning">
+      Balance sheet does not balance — please contact support.
+    </p>
+  {% endif %}
+</section>
+{% endif %}
+
+{# Up-to mode (no from_date) — the BS drill-down shows cumulative history. #}
+{% set drilldown_to_date = as_of %}
+{% set drilldown_from_date = '' %}
+{% include "_account_drilldown_modal.html" %}
+
+<p class="report-back-link no-print">
+  <a href="/reports">← Back to Reports</a>
+  &nbsp;·&nbsp;
+  <a href="/menu">Main menu</a>
+</p>
+{% endblock %}

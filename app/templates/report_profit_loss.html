@@ -1,0 +1,131 @@
+{#
+  Profit & Loss Account — real implementation.
+
+  Layout mirrors Balance Sheet:
+    - Toolbar: form (from + to) and Print button (only after submission).
+    - Single table with title block in <thead> (repeats on each printed page),
+      then SALES and COSTS sections, each with a subtotal, then the
+      Profit / (Loss) bottom line.
+    - Drill-down modal (shared partial) with the date-range data attributes
+      so per-account drill-downs respect the same window.
+
+  All amounts use parentheses for negatives. The bottom Profit/(Loss) row
+  has bold label + top border; on a loss it adds red colour and italics on
+  the amount cell (per spec — distinct from BS's lighter P/L styling).
+#}
+{% extends "base.html" %}
+{% block title %}Profit &amp; Loss — General Ledger{% endblock %}
+
+{% block content %}
+<div class="report-toolbar no-print">
+  <form method="get" action="/reports/profit-and-loss" class="card tb-form">
+    <div class="txn-header">
+      <label>
+        From date
+        <input type="date" name="from_date" required value="{{ from_date }}" />
+      </label>
+      <label>
+        To date
+        <input type="date" name="to_date" required value="{{ to_date }}" />
+      </label>
+    </div>
+    <button type="submit">Run report</button>
+  </form>
+  {% if submitted %}
+    <button type="button" class="btn-print btn-secondary" onclick="window.print()">Print</button>
+  {% endif %}
+</div>
+
+{% if errors %}
+  <ul class="flashes no-print">
+    {% for e in errors %}
+      <li class="flash flash-error">{{ e }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if submitted %}
+<section class="tb-report pl-report" aria-label="Profit & Loss report">
+  <table class="tb-table pl-table">
+    <thead>
+      <tr class="tb-heading-row">
+        <th colspan="3" class="tb-heading-cell">
+          <div class="tb-title">Profit &amp; Loss Account</div>
+          <div class="tb-company">{{ company_name }}</div>
+          <div class="tb-as-of">From {{ from_date_parsed|date_dmy }} to {{ to_date_parsed|date_dmy }}</div>
+        </th>
+      </tr>
+      <tr>
+        <th>Account Number</th>
+        <th>Account Name</th>
+        <th class="amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if data.is_empty %}
+        <tr><td colspan="3" class="tb-empty">(No transactions to display)</td></tr>
+      {% else %}
+
+        {# ---------- SALES ---------- #}
+        <tr class="bs-section-heading"><td colspan="3">SALES</td></tr>
+        {% if data.sales %}
+          {% for s in data.sales %}
+            <tr>
+              <td><a href="#" class="tb-drill" data-account="{{ s.account_number }}">{{ s.account_number }}</a></td>
+              <td><a href="#" class="tb-drill" data-account="{{ s.account_number }}">{{ s.account_name }}</a></td>
+              <td class="amt">{{ s.balance_display }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3" class="bs-section-empty">(none)</td></tr>
+        {% endif %}
+        <tr class="bs-subtotal">
+          <td colspan="2"><strong>Total Sales</strong></td>
+          <td class="amt"><strong>{{ data.total_sales_display }}</strong></td>
+        </tr>
+
+        {# ---------- COSTS ---------- #}
+        <tr class="bs-section-heading"><td colspan="3">COSTS</td></tr>
+        {% if data.costs %}
+          {% for c in data.costs %}
+            <tr>
+              <td><a href="#" class="tb-drill" data-account="{{ c.account_number }}">{{ c.account_number }}</a></td>
+              <td><a href="#" class="tb-drill" data-account="{{ c.account_number }}">{{ c.account_name }}</a></td>
+              <td class="amt">{{ c.balance_display }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3" class="bs-section-empty">(none)</td></tr>
+        {% endif %}
+        <tr class="bs-subtotal">
+          <td colspan="2"><strong>Total Costs</strong></td>
+          <td class="amt"><strong>{{ data.total_costs_display }}</strong></td>
+        </tr>
+
+        {# ---------- Profit / (Loss) for the period ----------
+           Bold label + top border separator. Loss adds red + italic on the
+           amount cell. Not clickable — derived calculation. #}
+        <tr class="pl-result-row {% if data.profit_or_loss < 0 %}pl-loss{% endif %}">
+          <td colspan="2"><strong>Profit / (Loss) for the period</strong></td>
+          <td class="amt"><strong>{{ data.profit_or_loss_display }}</strong></td>
+        </tr>
+
+      {% endif %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{# Range mode: drill-down respects from_date and to_date so the popup
+   shows only in-period activity (running balance accumulates from 0
+   within the period). #}
+{% set drilldown_to_date = to_date %}
+{% set drilldown_from_date = from_date %}
+{% include "_account_drilldown_modal.html" %}
+
+<p class="report-back-link no-print">
+  <a href="/reports">← Back to Reports</a>
+  &nbsp;·&nbsp;
+  <a href="/menu">Main menu</a>
+</p>
+{% endblock %}

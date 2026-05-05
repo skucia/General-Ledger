@@ -1,0 +1,83 @@
+{#
+  Add Accounts screen.
+
+  Layout:
+    - "New account" form at the top (the Phase 5 deliverable).
+    - "Existing accounts" tables below, grouped by account type in
+      accounting order: Asset, Liability, Equity, Sales, Costs.
+#}
+{% extends "base.html" %}
+{% block title %}Add Accounts — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Add Accounts</h2>
+
+{% if user.user_type == 'view' %}
+  <p class="notice">
+    You are signed in as a <strong>view-only</strong> user. You can browse
+    this screen but submissions will be blocked.
+  </p>
+{% endif %}
+
+<h3>New account</h3>
+<form method="post" action="/accounts/new" class="card">
+  <label>
+    Account Number (alphanumeric, up to 20 characters; saved as uppercase)
+    <input
+      name="account_number"
+      required
+      maxlength="20"
+      pattern="[A-Za-z0-9]+"
+      title="Letters and digits only"
+      autofocus
+      autocomplete="off"
+    />
+  </label>
+
+  <label>
+    Account Name (up to 30 characters)
+    <input name="account_name" required maxlength="30" autocomplete="off" />
+  </label>
+
+  <label>
+    Account Type
+    <select name="account_type" required>
+      <option value="">— choose one —</option>
+      {% for code in type_order %}
+        <option value="{{ code }}">{{ code }} — {{ type_labels[code] }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <button type="submit">Create account</button>
+</form>
+
+<h3>Existing accounts</h3>
+{% if grouped_accounts %}
+  {% for type_code, type_label, rows in grouped_accounts %}
+    <h4 class="account-group-heading">{{ type_code }} — {{ type_label }}</h4>
+    <table class="accounts-table">
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Name</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.account_number }}</td>
+            <td>{{ r.account_name }}</td>
+            <td>{{ r.created_at|date_dmy }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+{% else %}
+  <p><em>No accounts yet.</em></p>
+{% endif %}
+
+<p><a href="/menu">← Back to menu</a></p>
+{% endblock %}

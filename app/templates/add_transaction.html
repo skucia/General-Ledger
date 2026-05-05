@@ -1,0 +1,219 @@
+{#
+  Add Transaction screen.
+
+  Layout:
+    - Transaction date (defaults to today; HTML5 date picker — display
+      format follows your Mac region setting; wire format is ISO).
+    - Optional attachment (max 10 MB).
+    - Lines table: starts with 2 rows; user can add or remove rows with
+      vanilla JS. A "totals" row is computed live as the user types.
+    - Datalist of existing accounts gives typeahead; the server still
+      validates that the entered account number exists.
+
+  Vanilla JS (~30 lines, inline at the bottom of this template):
+    recalc()    sums DR/CR amounts and updates the totals row.
+    addLine()   clones a <template> row and appends it.
+    Event delegation on the tbody handles remove-button clicks and any
+    input/change so totals stay live.
+#}
+{% extends "base.html" %}
+{% block title %}Add Transaction — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Add Transaction</h2>
+
+{% if user.user_type == 'view' %}
+  <p class="notice">
+    You are signed in as a <strong>view-only</strong> user. You can browse
+    this screen but submissions will be blocked.
+  </p>
+{% endif %}
+
+{% if errors %}
+  <ul class="flashes">
+    {% for e in errors %}
+      <li class="flash flash-error">{{ e }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<form method="post" action="/transactions/new" enctype="multipart/form-data" class="card txn-form">
+
+  <div class="txn-header">
+    <label>
+      Transaction Date
+      <input
+        type="date"
+        name="transaction_date"
+        required
+        value="{{ form.transaction_date }}"
+      />
+    </label>
+
+    <label>
+      Description (required, up to 200 characters)
+      <input
+        type="text"
+        name="description"
+        required
+        maxlength="200"
+        value="{{ form.description }}"
+      />
+    </label>
+
+    <label>
+      Reference (e.g. CB-001, KA-145, JV-099)
+      <input
+        type="text"
+        name="transaction_reference"
+        required
+        maxlength="20"
+        autocomplete="off"
+        value="{{ form.transaction_reference }}"
+      />
+    </label>
+  </div>
+
+  <label>
+    Attachment (optional, max 10 MB)
+    <input type="file" name="attachment" />
+  </label>
+
+  <h3>Lines</h3>
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th>DR/CR</th>
+        <th>Account #</th>
+        <th>Amount</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="lines-tbody">
+      {% for line in form.lines %}
+        <tr class="line-row">
+          <td>
+            <select name="dr_cr" required>
+              <option value="" {% if not line.dr_cr %}selected{% endif %}>—</option>
+              <option value="DR" {% if line.dr_cr == 'DR' %}selected{% endif %}>DR</option>
+              <option value="CR" {% if line.dr_cr == 'CR' %}selected{% endif %}>CR</option>
+            </select>
+          </td>
+          <td>
+            <input
+              list="account-numbers"
+              name="account_number"
+              required
+              maxlength="20"
+              autocomplete="off"
+              value="{{ line.account_number }}"
+            />
+          </td>
+          <td>
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+              value="{{ line.amount }}"
+            />
+          </td>
+          <td>
+            <button type="button" class="btn-remove-line">Remove</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="totals-row">
+        <td><strong>Totals</strong></td>
+        <td>DR: <span id="total-dr">0.00</span></td>
+        <td>CR: <span id="total-cr">0.00</span></td>
+        <td>Diff: <span id="total-diff">0.00</span></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <button type="button" id="btn-add-line" class="btn-secondary">+ Add line</button>
+
+  <div class="txn-actions">
+    <button type="submit">Post transaction</button>
+  </div>
+</form>
+
+<datalist id="account-numbers">
+  {% for acc in accounts %}
+    <option value="{{ acc.account_number }}">{{ acc.account_name }}</option>
+  {% endfor %}
+</datalist>
+
+{# Template element used by the JS to clone a fresh blank row. #}
+<template id="line-template">
+  <tr class="line-row">
+    <td>
+      <select name="dr_cr" required>
+        <option value="" selected>—</option>
+        <option value="DR">DR</option>
+        <option value="CR">CR</option>
+      </select>
+    </td>
+    <td>
+      <input list="account-numbers" name="account_number" required maxlength="20" autocomplete="off" />
+    </td>
+    <td>
+      <input name="amount" type="number" step="0.01" min="0.01" required />
+    </td>
+    <td>
+      <button type="button" class="btn-remove-line">Remove</button>
+    </td>
+  </tr>
+</template>
+
+<p><a href="/menu">← Back to menu</a></p>
+
+<script>
+  // Vanilla JS for add/remove rows + live DR/CR/Diff totals.
+  // No build step, no framework. ~30 lines.
+  (function () {
+    const tbody = document.getElementById('lines-tbody');
+    const drEl = document.getElementById('total-dr');
+    const crEl = document.getElementById('total-cr');
+    const diffEl = document.getElementById('total-diff');
+
+    function recalc() {
+      let dr = 0, cr = 0;
+      tbody.querySelectorAll('tr.line-row').forEach(function (row) {
+        const sel = row.querySelector('select[name="dr_cr"]').value;
+        const amt = parseFloat(row.querySelector('input[name="amount"]').value) || 0;
+        if (sel === 'DR') dr += amt;
+        else if (sel === 'CR') cr += amt;
+      });
+      drEl.textContent = dr.toFixed(2);
+      crEl.textContent = cr.toFixed(2);
+      const diff = dr - cr;
+      diffEl.textContent = diff.toFixed(2);
+      diffEl.className = Math.abs(diff) < 0.005 ? 'diff-balanced' : 'diff-unbalanced';
+    }
+
+    document.getElementById('btn-add-line').addEventListener('click', function () {
+      const tpl = document.getElementById('line-template');
+      tbody.appendChild(tpl.content.cloneNode(true));
+      recalc();
+    });
+
+    tbody.addEventListener('click', function (e) {
+      if (e.target && e.target.classList.contains('btn-remove-line')) {
+        if (tbody.querySelectorAll('tr.line-row').length > 1) {
+          e.target.closest('tr').remove();
+          recalc();
+        }
+      }
+    });
+
+    tbody.addEventListener('input', recalc);
+    tbody.addEventListener('change', recalc);
+    recalc();
+  })();
+</script>
+{% endblock %}
