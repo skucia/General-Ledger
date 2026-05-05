@@ -22,3 +22,6 @@ venv/
 # App-specific — keep the directory but exclude every file in it
 uploads/*
 !uploads/.gitkeep
+
+# Database dumps — never commit (would expose all data + schema)
+backups/
