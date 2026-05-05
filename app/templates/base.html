@@ -15,7 +15,15 @@
 </head>
 <body>
   <header>
-    <h1>General Ledger</h1>
+    <div class="header-title">
+      <h1>General Ledger</h1>
+      {# Database environment badge — colour-coded by DB_NAME suffix.
+         Visible on every page so it's obvious which database the app is
+         currently pointing at. The .env-{{ class }} CSS picks the colour. #}
+      <span class="env-badge env-{{ db_env_class }}" title="Active database">
+        {{ db_name }}
+      </span>
+    </div>
     {% if user %}
       <nav>
         <span>
@@ -42,5 +50,9 @@
 
     {% block content %}{% endblock %}
   </main>
+
+  {# Version footer — bumped manually by editing the VERSION file at the
+     project root. Hidden in print so reports stay clean. #}
+  <footer class="page-footer no-print">v{{ app_version }}</footer>
 </body>
 </html>

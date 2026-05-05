@@ -152,6 +152,55 @@ def _profit_loss_from_rows(rows: List[dict]) -> dict:
     }
 
 
+# --- Chart of Accounts -----------------------------------------------------
+
+def chart_of_accounts() -> dict:
+    """
+    Master-data listing of the chart of accounts. No balances, no date
+    filtering — just every account in the chart, grouped by type in
+    accounting order (A, L, E, S, C).
+
+    Unlike accounts_service.group_accounts_by_type() (which is used by the
+    Add Accounts screen and drops empty groups for compactness), this
+    function ALWAYS returns one entry per type code, even when a group
+    has no accounts — the Chart of Accounts report needs to surface
+    "(no accounts in this group)" placeholders.
+
+    Returns:
+      {
+        "groups": [
+          {"type_code": "A", "type_label": "Asset",
+           "accounts": [{"account_number","account_name","account_type"}, ...],
+           "count": int},
+          ...   # always 5 entries, in accounting order
+        ],
+        "total_accounts": int,
+        "type_count": int,    # always 5; drives the "across N types" footer copy
+      }
+    """
+    rows = accounts_service.list_accounts()  # already sorted by type then number
+
+    by_type: dict = {}
+    for r in rows:
+        by_type.setdefault(r["account_type"], []).append(r)
+
+    groups = []
+    for code in accounts_service.ACCOUNT_TYPE_ORDER:
+        accounts = by_type.get(code, [])
+        groups.append({
+            "type_code": code,
+            "type_label": accounts_service.ACCOUNT_TYPE_LABELS[code],
+            "accounts": accounts,
+            "count": len(accounts),
+        })
+
+    return {
+        "groups": groups,
+        "total_accounts": len(rows),
+        "type_count": len(accounts_service.ACCOUNT_TYPE_ORDER),
+    }
+
+
 # --- Journal Listing -------------------------------------------------------
 
 def journal_listing(

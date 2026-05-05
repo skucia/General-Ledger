@@ -1,0 +1,95 @@
+{#
+  Chart of Accounts — master-data listing.
+
+  Different from the other four reports in two ways:
+    1. No date-range or "as of" form. Always shows the current chart and
+       today's date in the header.
+    2. No drill-down on accounts (no clicks, no modal include). Account
+       numbers and names are plain text.
+
+  Layout still matches the others — title block lives in <thead> so it
+  repeats on every printed page; per-section heading bands; subtle
+  block subtotals; final grand total. CSS classes are reused from the
+  Balance Sheet and Journal Listing where they fit.
+#}
+{% extends "base.html" %}
+{% block title %}Chart of Accounts — General Ledger{% endblock %}
+
+{# Hardcoded plural labels for the five account-type section headings.
+   Naive +'s' would produce "Liabilitys" / "Equitys" / "Saless" — wrong.
+   "Equity" is uncountable; "Sales" is already plural. Keys must match
+   the type_code values from chart_of_accounts(). #}
+{% set type_section_label = {
+  'A': 'Assets',
+  'L': 'Liabilities',
+  'E': 'Equity',
+  'S': 'Sales',
+  'C': 'Costs',
+} %}
+
+{% block content %}
+<div class="report-toolbar no-print">
+  <button type="button" class="btn-print btn-secondary" onclick="window.print()">Print</button>
+</div>
+
+<section class="tb-report coa-report" aria-label="Chart of Accounts report">
+  <table class="tb-table coa-table">
+    {# Fixed column widths so all the rows align consistently — same
+       trick the Journal Listing uses to keep multiple tables in sync,
+       though here it's just one table and we still benefit from the
+       predictability. #}
+    <colgroup>
+      <col class="col-acct" />
+      <col class="col-name" />
+      <col class="col-type" />
+    </colgroup>
+    <thead>
+      <tr class="tb-heading-row">
+        <th colspan="3" class="tb-heading-cell coa-heading-cell">
+          <div class="tb-title">Chart of Accounts</div>
+          <div class="tb-company">{{ company_name }}</div>
+          <div class="coa-date">{{ today|date_dmy }}</div>
+        </th>
+      </tr>
+      <tr>
+        <th>Account Number</th>
+        <th>Account Name</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for group in data.groups %}
+        <tr class="bs-section-heading"><td colspan="3">{{ type_section_label[group.type_code] }}</td></tr>
+        {% if group.accounts %}
+          {% for a in group.accounts %}
+            <tr>
+              <td>{{ a.account_number }}</td>
+              <td>{{ a.account_name }}</td>
+              <td>{{ a.account_type }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3" class="bs-section-empty">(no accounts in this group)</td></tr>
+        {% endif %}
+        <tr class="jl-block-totals">
+          <td colspan="3">Subtotal: {{ group.count }} account{{ '' if group.count == 1 else 's' }}</td>
+        </tr>
+      {% endfor %}
+      <tr class="bs-subtotal coa-grand-total">
+        <td colspan="3">
+          <strong>
+            Total: {{ data.total_accounts }} account{{ '' if data.total_accounts == 1 else 's' }}
+            across {{ data.type_count }} types
+          </strong>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<p class="report-back-link no-print">
+  <a href="/reports">← Back to Reports</a>
+  &nbsp;·&nbsp;
+  <a href="/menu">Main menu</a>
+</p>
+{% endblock %}

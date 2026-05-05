@@ -12,11 +12,34 @@ from typing import Any
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app.config import settings
+
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 # This `templates` object is imported by every router that renders HTML.
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def _db_env_class(db_name: str) -> str:
+    """
+    Map the active database name to a CSS class for the env badge:
+        *_live  -> 'live'  (green)
+        *_test  -> 'test'  (amber)
+        anything else -> 'other' (grey)
+    """
+    if db_name.endswith("_live"):
+        return "live"
+    if db_name.endswith("_test"):
+        return "test"
+    return "other"
+
+
+# Make these settings-derived values available to every template without
+# every route having to pass them through TemplateResponse context.
+templates.env.globals["db_name"] = settings.db_name
+templates.env.globals["db_env_class"] = _db_env_class(settings.db_name)
+templates.env.globals["app_version"] = settings.app_version
 
 
 def versioned_static(filename: str) -> str:

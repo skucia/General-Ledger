@@ -46,6 +46,10 @@ class Settings:
     # File uploads — resolved to an absolute path so it works no matter where you run the app from
     upload_dir: Path
 
+    # App version (read from VERSION file at startup; falls back to "0.0.0-dev"
+    # if the file is missing so the app boots regardless).
+    app_version: str
+
     @property
     def db_dsn(self) -> str:
         """psycopg connection string built from the individual fields."""
@@ -54,6 +58,15 @@ class Settings:
             f"dbname={self.db_name} user={self.db_user} "
             f"password={self.db_password}"
         )
+
+
+def _read_version() -> str:
+    """Read VERSION at startup. Single line, trimmed. Fall back if missing."""
+    version_file = PROJECT_ROOT / "VERSION"
+    try:
+        return version_file.read_text(encoding="utf-8").strip() or "0.0.0-dev"
+    except FileNotFoundError:
+        return "0.0.0-dev"
 
 
 def _load_settings() -> Settings:
@@ -69,6 +82,7 @@ def _load_settings() -> Settings:
         db_password=_required("DB_PASSWORD"),
         session_secret=_required("SESSION_SECRET"),
         upload_dir=upload_dir,
+        app_version=_read_version(),
     )
 
 

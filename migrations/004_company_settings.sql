@@ -15,5 +15,5 @@ CREATE TABLE IF NOT EXISTS company_settings (
 
 -- Seed the row on first run; ON CONFLICT keeps the migration idempotent.
 INSERT INTO company_settings (id, company_name)
-VALUES (1, 'Kasis Sdn Bhd')
+VALUES (1, 'Kasia Sdn Bhd')
 ON CONFLICT (id) DO NOTHING;

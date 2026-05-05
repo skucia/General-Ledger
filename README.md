@@ -48,6 +48,20 @@ ls -la .env
 
 ---
 
+## Switching databases
+
+The app supports two databases — `generalledger_live` (real data) and `generalledger_test` (frozen test fixture). Switch the active one (or check which one's active) with the helper scripts in `scripts/`:
+
+```bash
+scripts/use_live.sh    # point .env at generalledger_live
+scripts/use_test.sh    # point .env at generalledger_test
+scripts/which_db.sh    # report which database .env currently points at
+```
+
+All three are idempotent. After swapping, restart uvicorn for the change to take effect.
+
+---
+
 ## Apply database migrations
 
 This creates the four tables (`users`, `accounts`, `transactions`, `transaction_lines`) and the DR=CR balance trigger. Safe to re-run any time — it tracks which migrations have already been applied in a `schema_migrations` table.

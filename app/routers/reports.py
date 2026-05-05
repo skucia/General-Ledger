@@ -1,11 +1,12 @@
 """
 Reports routes.
 
-  GET /reports                                  — landing menu (4 buttons)
+  GET /reports                                  — landing menu (5 buttons)
   GET /reports/trial-balance                    — Trial Balance
   GET /reports/balance-sheet                    — Balance Sheet
   GET /reports/profit-and-loss                  — Profit & Loss
   GET /reports/journal-listing                  — Journal Listing
+  GET /reports/chart-of-accounts                — Chart of Accounts
   GET /reports/account-detail/{account_number}  — JSON drill-down (shared)
 
 All routes are accessible to logged-in users including view-only.
@@ -588,5 +589,29 @@ def journal_listing(
             "filter_account": filter_account,
             "submitted": True,
             "data": data,
+        },
+    )
+
+
+# --- Chart of Accounts -----------------------------------------------------
+
+@router.get("/reports/chart-of-accounts")
+def chart_of_accounts(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Master-data listing of the chart of accounts. Pure list — no balances,
+    no date filter, no drill-down. Renders today's date in the header.
+    Available to all logged-in users including view-only.
+    """
+    return templates.TemplateResponse(
+        "report_chart_of_accounts.html",
+        {
+            "request": request,
+            "user": user,
+            "company_name": reports_service.get_company_name(),
+            "today": date.today(),
+            "data": reports_service.chart_of_accounts(),
         },
     )
