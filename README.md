@@ -9,13 +9,22 @@ This README covers Phase 1 (project skeleton, schema migration, bootstrap admin 
 ## Prerequisites
 
 - Python 3.11 or newer (`python3 --version`)
-- Postgres 17 already running locally with these credentials (already true on this machine):
-  - host `localhost`, port `5432`, database `generalledger`, user `gluser`, password `<REDACTED>`
+- Postgres 17 (or compatible) reachable on the host you'll run the app on.
 
-If you ever need to verify the DB is reachable from the host:
+The app reads its database connection from environment variables loaded out of a `.env` file. See **[`.env.example`](./.env.example)** for the exact list of variables (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, plus `SESSION_SECRET` and `UPLOAD_DIR`). Copy it to `.env` and fill in your real values:
 
 ```bash
-psql "host=localhost port=5432 dbname=generalledger user=gluser password=<REDACTED>" -c "SELECT 1"
+cp .env.example .env
+# then edit .env in your editor and put real values in
+```
+
+> **Never commit `.env`.** It's in `.gitignore` for that reason.
+
+If you ever need to verify the DB is reachable from the host (replace placeholders with your real values, or use a `psql` connection string from a secrets manager rather than typing the password on the command line):
+
+```bash
+psql "host=<your-db-host> port=<your-db-port> dbname=<your-db-name> user=<your-db-user>" -c "SELECT 1"
+# psql will prompt for the password interactively
 ```
 
 ---
