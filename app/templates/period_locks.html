@@ -1,0 +1,114 @@
+{#
+  Admin-only Period Locks page. Single template, two modes:
+    mode='form'    — show the create-new form (default)
+    mode='confirm' — show the confirmation panel with txn count
+  Current lock state and the history table are rendered in both modes.
+#}
+{% extends "base.html" %}
+{% block title %}Period Locks — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Period Locks</h2>
+
+<p class="notice">
+  Period locks prevent any further posts, edits or deletes against
+  transactions on or before the locked-through date. <strong>Locks
+  cannot be removed via this UI</strong> — any rollback must be done
+  deliberately at the database level.
+</p>
+
+{# Current state ----------------------------------------------------- #}
+<section class="period-lock-current">
+  <h3>Current state</h3>
+  {% if current_lock %}
+    <p class="locked">🔒 <strong>Locked through {{ current_lock|date_dmy }}</strong></p>
+  {% else %}
+    <p class="unlocked">No period lock currently set.</p>
+  {% endif %}
+</section>
+
+{% if errors %}
+  <ul class="flashes">
+    {% for e in errors %}<li class="flash flash-error">{{ e }}</li>{% endfor %}
+  </ul>
+{% endif %}
+
+{# ---- Create form OR confirmation panel ---------------------------- #}
+{% if mode == 'confirm' %}
+<section class="period-lock-confirm">
+  <h3>Confirm new lock</h3>
+  <p>
+    You are about to lock all transactions dated on or before
+    <strong>{{ proposed_date|date_dmy }}</strong>.
+  </p>
+  <p>
+    {% if txn_count == 1 %}
+      <strong>1</strong> transaction is dated on or before this date and
+      will become read-only.
+    {% else %}
+      <strong>{{ txn_count }}</strong> transactions are dated on or before
+      this date and will become read-only.
+    {% endif %}
+  </p>
+  {% if proposed_reason %}
+    <p>Reason: <em>{{ proposed_reason }}</em></p>
+  {% endif %}
+  <p class="warning"><strong>Locks cannot be undone through the UI.</strong></p>
+  <form method="post" action="/admin/period-locks" class="card">
+    <input type="hidden" name="locked_through" value="{{ proposed_date.isoformat() }}" />
+    <input type="hidden" name="reason" value="{{ proposed_reason }}" />
+    <input type="hidden" name="confirmed" value="yes" />
+    <div class="confirm-actions">
+      <button type="submit">I confirm — lock the period</button>
+      <a href="/admin/period-locks" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="period-lock-create">
+  <h3>Create new lock</h3>
+  <form method="post" action="/admin/period-locks" class="card">
+    <label>
+      Lock through date
+      <input type="date" name="locked_through" required value="{{ form_date }}" />
+    </label>
+    <label>
+      Reason (optional)
+      <input type="text" name="reason" maxlength="500" autocomplete="off" value="{{ form_reason }}" />
+    </label>
+    <button type="submit">Continue to confirmation</button>
+  </form>
+</section>
+{% endif %}
+
+{# History (always shown) ------------------------------------------- #}
+<section class="period-lock-history">
+  <h3>History</h3>
+  {% if locks %}
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>Locked at</th>
+          <th>Locked through</th>
+          <th>Locked by</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lock in locks %}
+          <tr>
+            <td>{{ lock.locked_at|date_dmy }}</td>
+            <td>{{ lock.locked_through|date_dmy }}</td>
+            <td>{{ lock.locked_by_username }}</td>
+            <td>{{ lock.reason or '' }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p><em>No locks have been created.</em></p>
+  {% endif %}
+</section>
+
+<p><a href="/menu">← Back to menu</a></p>
+{% endblock %}

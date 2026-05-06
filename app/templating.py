@@ -41,6 +41,14 @@ templates.env.globals["db_name"] = settings.db_name
 templates.env.globals["db_env_class"] = _db_env_class(settings.db_name)
 templates.env.globals["app_version"] = settings.app_version
 
+# Period-lock state — registered as a callable global so each template
+# render fetches fresh state via SELECT MAX(locked_through) (one
+# indexed query per page render). Used by the lock badge in base.html.
+# Imported lazily-ish at module-import time; fine because period_locks.py
+# has no other dependencies on this file.
+from app.services.period_locks import get_current_lock_date as _get_current_lock_date
+templates.env.globals["current_lock_date"] = _get_current_lock_date
+
 
 def versioned_static(filename: str) -> str:
     """

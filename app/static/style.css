@@ -55,6 +55,57 @@ body > header nav {
 .env-badge.env-test  { background: #fff3cd; color: #856404; border-color: #ffeeba; }
 .env-badge.env-other { background: #e2e3e5; color: #383d41; border-color: #d6d8db; }
 
+/* Period-lock badge — distinct rust red so it doesn't clash with the
+   green/amber env badges. Visible whenever any period_locks row exists. */
+.lock-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .8em;
+  font-weight: 600;
+  letter-spacing: .02em;
+  border: 1px solid #f5c6cb;
+  background: #f8d7da;
+  color: #721c24;
+  white-space: nowrap;
+}
+
+/* --- Period Locks admin page --- */
+
+.period-lock-current { margin: 1.5em 0; }
+.period-lock-current .locked   { color: #721c24; font-size: 1.05em; }
+.period-lock-current .unlocked { color: #555;    font-style: italic; }
+
+.period-lock-create   { margin: 1.5em 0; }
+.period-lock-history  { margin: 2em 0; }
+
+/* Confirmation panel — yellow background to flag "this is a destructive
+   action requiring extra attention". Buttons sit in a flex row at the
+   bottom so Cancel sits right next to the confirm button. */
+.period-lock-confirm {
+  margin: 1.5em 0;
+  padding: 1em 1.5em;
+  background: #fff8d8;
+  border: 1px solid #e8d27a;
+  border-radius: 6px;
+}
+.period-lock-confirm .warning {
+  color: #b03030;
+  font-weight: bold;
+  margin-top: 1em;
+}
+.period-lock-confirm .confirm-actions {
+  display: flex;
+  gap: 1em;
+  align-items: center;
+  margin-top: 1em;
+}
+.period-lock-confirm .btn-secondary {
+  text-decoration: none;
+  padding: .5em 1em;
+}
+
 /* Version footer — small, grey, right-aligned, hidden in print. */
 footer.page-footer {
   margin-top: 3em;

@@ -23,6 +23,15 @@
       <span class="env-badge env-{{ db_env_class }}" title="Active database">
         {{ db_name }}
       </span>
+      {# Period-lock badge — visible only when a lock exists. The
+         current_lock_date Jinja global is a callable (one indexed query
+         per render) so this always reflects the latest state. #}
+      {% set _lock = current_lock_date() %}
+      {% if _lock %}
+        <span class="lock-badge" title="Period locked through {{ _lock|date_dmy }}">
+          🔒 Locked through {{ _lock|date_dmy }}
+        </span>
+      {% endif %}
     </div>
     {% if user %}
       <nav>

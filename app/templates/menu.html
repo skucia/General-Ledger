@@ -47,10 +47,18 @@
     <span class="menu-label">Run Reports</span>
   </a>
 
+  {% if user.is_admin %}
+    <a class="menu-button" href="/admin/period-locks">
+      <span class="menu-num">5</span>
+      <span class="menu-label">Period Locks</span>
+      <span class="menu-hint">admin only</span>
+    </a>
+  {% endif %}
+
   {# Logout submitted as POST so it can't be triggered by an accidental link click. #}
   <form method="post" action="/logout" class="menu-button-form">
     <button type="submit" class="menu-button menu-button--logout">
-      <span class="menu-num">{% if user.is_admin %}5{% else %}4{% endif %}</span>
+      <span class="menu-num">{% if user.is_admin %}6{% else %}4{% endif %}</span>
       <span class="menu-label">Logout</span>
     </button>
   </form>

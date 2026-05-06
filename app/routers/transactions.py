@@ -236,6 +236,22 @@ async def add_transaction_submit(
             created_by=user["id"],
             lines=parsed_lines,
         )
+    except transactions_service.PeriodLockedError as exc:
+        # The transaction date falls in a closed period. Clean up the
+        # uploaded file (if any) and re-render the form with the friendly
+        # error message from the exception.
+        if saved_filename:
+            (settings.upload_dir / saved_filename).unlink(missing_ok=True)
+        return _render_form(
+            request=request,
+            user=user,
+            transaction_date=transaction_date,
+            description=description,
+            transaction_reference=transaction_reference,
+            lines=raw_lines,
+            errors=[str(exc)],
+            status_code=400,
+        )
     except transactions_service.UnbalancedTransactionError as exc:
         # Defensive: the app already validated DR=CR. If we hit this, our
         # own logic disagreed with Postgres — clean up the file and surface
@@ -246,6 +262,8 @@ async def add_transaction_submit(
             request=request,
             user=user,
             transaction_date=transaction_date,
+            description=description,
+            transaction_reference=transaction_reference,
             lines=raw_lines,
             errors=[f"Database rejected the transaction: {exc}"],
             status_code=400,

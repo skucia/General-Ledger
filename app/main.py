@@ -25,6 +25,7 @@ from app.routers import admin as admin_router
 from app.routers import attachments as attachments_router
 from app.routers import auth as auth_router
 from app.routers import menu as menu_router
+from app.routers import period_locks as period_locks_router
 from app.routers import reports as reports_router
 from app.routers import transactions as transactions_router
 from app.routers import users as users_router
@@ -81,3 +82,4 @@ app.include_router(accounts_router.router)
 app.include_router(transactions_router.router)
 app.include_router(reports_router.router)
 app.include_router(attachments_router.router)
+app.include_router(period_locks_router.router)
