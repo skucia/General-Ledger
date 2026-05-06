@@ -261,44 +261,108 @@ form select:focus { outline: 2px solid #2a5db0; outline-offset: 1px; }
 
 /* --- Add Transaction screen (Phase 6) --- */
 
-form.txn-form { max-width: 700px; }
+form.txn-form { max-width: 800px; }
 
+/* Top row of fields: Date 150px (no grow), Description grows to fill,
+   Reference 180px (no grow). Wraps below 600px-ish viewports thanks to
+   flex-wrap; the per-label flex-basis is the post-wrap baseline. */
 .txn-header {
   display: flex;
   gap: 1em;
   flex-wrap: wrap;
 }
-.txn-header label { flex: 1 1 200px; min-width: 0; }
+.txn-header label { margin: 0; min-width: 0; }
+.txn-header label.txn-header-date { flex: 0 0 150px; }
+.txn-header label.txn-header-desc { flex: 1 1 250px; }
+.txn-header label.txn-header-ref  { flex: 0 0 180px; }
 
+/* Pin all three header inputs to the same height. Native <input type="date">
+   on macOS has slightly taller intrinsic rendering than plain text inputs,
+   so without an explicit height the Date field stands out. 36px matches the
+   date picker's natural rendering on macOS Safari/Chrome. */
+.txn-header input {
+  height: 36px;
+  box-sizing: border-box;
+}
+
+/* Consistent vertical rhythm between major sections of the form. The
+   first child (.txn-header) gets no top margin so the form starts flush. */
+form.txn-form > * + * { margin-top: 1.5em; }
+.txn-section-heading { margin-bottom: .5em; font-size: 1.05em; }
+.txn-add-line-row { margin-top: 1em; }
+
+/* Lines table — fixed layout so columns are predictable and the totals
+   row sits cleanly under the Amount column regardless of content width. */
 .lines-table {
   width: 100%;
   border-collapse: collapse;
-  margin: .5em 0 1em;
   font-size: .95em;
+  table-layout: fixed;
 }
+.lines-table col.col-drcr   { width: 90px;  }
+.lines-table col.col-acct   { width: auto;  }   /* takes remaining space */
+.lines-table col.col-amount { width: 150px; }
+.lines-table col.col-remove { width: 110px; }
+
 .lines-table th,
 .lines-table td {
-  padding: .35em .4em;
+  padding: .4em .5em;
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
 .lines-table th { background: #fafbfd; text-align: left; }
+/* Data and totals cells with class .amt right-align so values stack neatly.
+   The Amount column HEADER stays left-aligned to match DR/CR and Account #
+   (it inherits text-align:left from the .lines-table th rule above). */
+.lines-table td.amt { text-align: right; }
 
 .lines-table input,
 .lines-table select {
   width: 100%;
+  /* Override the form-wide `min-width: 280px` floor — inside a fixed-width
+     table column we want the input to actually be the column's width, not
+     a 280px overflow. Without this, the Amount input (150px column) would
+     try to be 280px wide and visually misalign. */
+  min-width: 0;
   padding: .35em .45em;
   font-size: .95em;
   margin: 0;
 }
+/* Amount input: right-aligned tabular numbers — looks like an accounting
+   field, lines up neatly when stacked above the totals row. */
+.lines-table input[name="amount"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
-.lines-table .totals-row {
+/* Totals tfoot. Three rows of the same shape: label spans columns 1+2 and
+   right-aligns next to the value in the Amount column. The fourth (Remove)
+   column is intentionally empty for visual symmetry with the data rows. */
+.lines-table tfoot .totals-row {
   background: #f4f6fa;
   font-size: .95em;
 }
-.lines-table .totals-row td { padding: .5em .4em; }
+.lines-table tfoot .totals-row td { padding: .5em .65em; border-bottom: none; }
+.lines-table tfoot .totals-row td.totals-label {
+  text-align: right;
+  font-weight: 600;
+  color: #444;
+}
+.lines-table tfoot .totals-row td.amt {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.lines-table tfoot .totals-row-diff td.totals-label {
+  color: #222;
+  font-weight: 700;
+}
+/* Visual separator above the Difference row so it reads as the bottom-line
+   summary of the totals block. */
+.lines-table tfoot .totals-row-diff td { border-top: 1px solid #c8d1e2; }
 
-.diff-balanced { color: #1b7f1b; font-weight: bold; }
+/* Existing diff colour classes — applied by JS to the inner <span>. */
+.diff-balanced   { color: #1b7f1b; font-weight: bold; }
 .diff-unbalanced { color: #b03030; font-weight: bold; }
 
 .btn-secondary {
@@ -323,7 +387,6 @@ form.txn-form { max-width: 700px; }
 }
 .lines-table .btn-remove-line:hover { background: #fdecec; }
 
-.txn-actions { margin-top: 1.25em; }
 .txn-actions button { padding: .55em 1.4em; font-size: 1.05em; }
 
 /* --- Reports stubs (Phase 7) --- */

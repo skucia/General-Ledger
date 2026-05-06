@@ -40,7 +40,7 @@
 <form method="post" action="/transactions/new" enctype="multipart/form-data" class="card txn-form">
 
   <div class="txn-header">
-    <label>
+    <label class="txn-header-date">
       Transaction Date
       <input
         type="date"
@@ -50,8 +50,8 @@
       />
     </label>
 
-    <label>
-      Description (required, up to 200 characters)
+    <label class="txn-header-desc">
+      Description
       <input
         type="text"
         name="description"
@@ -61,8 +61,8 @@
       />
     </label>
 
-    <label>
-      Reference (e.g. CB-001, KA-145, JV-099)
+    <label class="txn-header-ref">
+      Reference
       <input
         type="text"
         name="transaction_reference"
@@ -74,19 +74,31 @@
     </label>
   </div>
 
-  <label>
+  <label class="txn-attachment">
     Attachment (optional, max 10 MB)
     <input type="file" name="attachment" />
   </label>
 
-  <h3>Lines</h3>
+  <h3 class="txn-section-heading">Lines</h3>
   <table class="lines-table">
+    {# Fixed column widths so amounts line up and the totals row sits
+       neatly under the Amount column. The Account # column absorbs
+       the slack on wide screens. #}
+    <colgroup>
+      <col class="col-drcr" />
+      <col class="col-acct" />
+      <col class="col-amount" />
+      <col class="col-remove" />
+    </colgroup>
     <thead>
       <tr>
         <th>DR/CR</th>
         <th>Account #</th>
-        <th>Amount</th>
-        <th></th>
+        <th class="amt">Amount</th>
+        {# Empty header cell above the Remove column — keeps the table's
+           four-column structure explicit. aria-label gives screen readers
+           something useful since it's visually empty. #}
+        <th aria-label="Row actions"></th>
       </tr>
     </thead>
     <tbody id="lines-tbody">
@@ -109,7 +121,7 @@
               value="{{ line.account_number }}"
             />
           </td>
-          <td>
+          <td class="amt">
             <input
               name="amount"
               type="number"
@@ -119,23 +131,37 @@
               value="{{ line.amount }}"
             />
           </td>
-          <td>
+          <td class="col-remove">
             <button type="button" class="btn-remove-line">Remove</button>
           </td>
         </tr>
       {% endfor %}
     </tbody>
     <tfoot>
+      {# Three summary rows, each spanning DR/CR + Account # for the label
+         so the value sits cleanly under the Amount column. JS still uses
+         the same span IDs (total-dr, total-cr, total-diff). #}
       <tr class="totals-row">
-        <td><strong>Totals</strong></td>
-        <td>DR: <span id="total-dr">0.00</span></td>
-        <td>CR: <span id="total-cr">0.00</span></td>
-        <td>Diff: <span id="total-diff">0.00</span></td>
+        <td colspan="2" class="totals-label">Total DR</td>
+        <td class="amt"><span id="total-dr">0.00</span></td>
+        <td></td>
+      </tr>
+      <tr class="totals-row">
+        <td colspan="2" class="totals-label">Total CR</td>
+        <td class="amt"><span id="total-cr">0.00</span></td>
+        <td></td>
+      </tr>
+      <tr class="totals-row totals-row-diff">
+        <td colspan="2" class="totals-label">Difference</td>
+        <td class="amt"><span id="total-diff">0.00</span></td>
+        <td></td>
       </tr>
     </tfoot>
   </table>
 
-  <button type="button" id="btn-add-line" class="btn-secondary">+ Add line</button>
+  <div class="txn-add-line-row">
+    <button type="button" id="btn-add-line" class="btn-secondary">+ Add line</button>
+  </div>
 
   <div class="txn-actions">
     <button type="submit">Post transaction</button>
@@ -161,10 +187,10 @@
     <td>
       <input list="account-numbers" name="account_number" required maxlength="20" autocomplete="off" />
     </td>
-    <td>
+    <td class="amt">
       <input name="amount" type="number" step="0.01" min="0.01" required />
     </td>
-    <td>
+    <td class="col-remove">
       <button type="button" class="btn-remove-line">Remove</button>
     </td>
   </tr>
