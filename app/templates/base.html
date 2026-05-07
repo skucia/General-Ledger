@@ -17,20 +17,24 @@
   <header>
     <div class="header-title">
       <h1>General Ledger</h1>
-      {# Database environment badge — colour-coded by DB_NAME suffix.
-         Visible on every page so it's obvious which database the app is
-         currently pointing at. The .env-{{ class }} CSS picks the colour. #}
-      <span class="env-badge env-{{ db_env_class }}" title="Active database">
-        {{ db_name }}
-      </span>
-      {# Period-lock badge — visible only when a lock exists. The
-         current_lock_date Jinja global is a callable (one indexed query
-         per render) so this always reflects the latest state. #}
-      {% set _lock = current_lock_date() %}
-      {% if _lock %}
-        <span class="lock-badge" title="Period locked through {{ _lock|date_dmy }}">
-          🔒 Locked through {{ _lock|date_dmy }}
+      {# Database environment badge — driven by the per-request session DB
+         (request.state.db_name, set by the DB-selection middleware). Hidden
+         on /login and any other page that runs before a DB has been picked. #}
+      {% if request.state.db_name %}
+        <span class="env-badge env-{{ request.state.db_env_class }}" title="Active database">
+          {{ request.state.db_name }}
         </span>
+      {% endif %}
+      {# Period-lock badge — only queried when an active session DB exists.
+         Skipping it on /login avoids a stray .env fallback query before the
+         user has even picked a database. #}
+      {% if request.state.db_name %}
+        {% set _lock = current_lock_date() %}
+        {% if _lock %}
+          <span class="lock-badge" title="Period locked through {{ _lock|date_dmy }}">
+            🔒 Locked through {{ _lock|date_dmy }}
+          </span>
+        {% endif %}
       {% endif %}
     </div>
     {% if user %}

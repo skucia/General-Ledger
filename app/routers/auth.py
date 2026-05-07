@@ -13,6 +13,8 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.auth import get_current_user
+from app.config import DATABASES
+from app.db import set_active_db
 from app.security import hash_password, verify_password
 from app.services import users as users_service
 from app.templating import flash, templates
@@ -38,17 +40,30 @@ def login_submit(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    database: str = Form(...),
 ):
-    user = users_service.get_user_by_username(username.strip())
-
-    # Same generic error for "no such user" and "wrong password" so we don't
-    # leak which usernames exist.
-    if user is None or not verify_password(password, user["password_hash"]):
+    # Validate the DB selection against the hardcoded allowed list. A bad
+    # value (browser bug, hand-edited form) gets the same generic error
+    # so we don't leak which keys exist.
+    if database not in DATABASES:
         flash(request, "Invalid username or password.", "error")
         return RedirectResponse("/login", status_code=303)
 
-    # Successful login — store only the user_id; the rest is re-fetched per request.
+    # Run the user lookup against the user-selected database. The session
+    # doesn't have db_key yet, so the middleware hasn't set the ContextVar
+    # — we set it explicitly for this block.
+    with set_active_db(database):
+        user = users_service.get_user_by_username(username.strip())
+        # Same generic error for "no such user", "wrong password", AND
+        # "user exists in the OTHER database" — don't leak which DB has
+        # which usernames.
+        if user is None or not verify_password(password, user["password_hash"]):
+            flash(request, "Invalid username or password.", "error")
+            return RedirectResponse("/login", status_code=303)
+
+    # Successful login — store user_id AND db_key; the rest is re-fetched per request.
     request.session["user_id"] = user["id"]
+    request.session["db_key"] = database
 
     if user["must_change_password"]:
         flash(request, "Please choose a new password before continuing.", "info")

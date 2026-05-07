@@ -19,7 +19,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.auth import MustChangePassword, NotAdmin, NotAuthenticated, NotFullUser
-from app.config import settings
+from app.config import DATABASES, settings
+from app.db import _active_db
 from app.routers import accounts as accounts_router
 from app.routers import admin as admin_router
 from app.routers import attachments as attachments_router
@@ -36,7 +37,43 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="General Ledger", version="0.2.0")
 
-# Sign session cookies with the SESSION_SECRET from .env.
+@app.middleware("http")
+async def db_selection_middleware(request: Request, call_next):
+    """
+    Per-request DB routing. Reads `db_key` from the signed session and:
+      - sets the ContextVar so app.db.get_connection() picks the right DSN,
+      - stashes display values on request.state for the env badge in base.html.
+    If the session has no valid db_key (logged out, or first visit), we leave
+    the ContextVar unset — get_connection() will then fall back to .env, but
+    in practice no DB-touching code runs on unauthed pages other than the
+    /login POST, which sets the ContextVar explicitly via set_active_db().
+
+    NOTE on ordering: Starlette wraps middleware so that the LAST one added
+    is the OUTERMOST (runs first on the way in). This decorator is registered
+    BEFORE the SessionMiddleware below, so SessionMiddleware ends up outer
+    and request.session is already populated by the time we run.
+    """
+    db_key = request.session.get("db_key")
+    if db_key in DATABASES:
+        token = _active_db.set(db_key)
+        request.state.db_key = db_key
+        request.state.db_name = DATABASES[db_key]
+        request.state.db_env_class = db_key  # 'test' / 'live' match CSS classes
+        try:
+            return await call_next(request)
+        finally:
+            _active_db.reset(token)
+    else:
+        # No active DB yet — render templates without the env badge.
+        request.state.db_key = None
+        request.state.db_name = ""
+        request.state.db_env_class = ""
+        return await call_next(request)
+
+
+# Sign session cookies with the SESSION_SECRET from .env. Added LAST so it
+# ends up as the OUTER middleware — request.session is populated before the
+# DB-selection middleware above reads it.
 # https_only=False because we run on localhost http during development.
 app.add_middleware(
     SessionMiddleware,
@@ -44,6 +81,7 @@ app.add_middleware(
     same_site="lax",
     https_only=False,
 )
+
 
 # Serve our small CSS file (and any future static assets) from /static/...
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

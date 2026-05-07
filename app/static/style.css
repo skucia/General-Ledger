@@ -1145,3 +1145,60 @@ canvas.pdf-page {
     }
   }
 }
+  }
+}
+
+/* --- Login form: database selector ----------------------------------------
+   The selected database is signalled by a coloured top border on the form
+   (amber for Test, green for Live). Pure CSS via :has(); no JS, no button
+   recolour. The Sign in button keeps the standard app blue so the colour
+   cue stays subtle.
+
+   Layout note: each .login-db-option is a <label> wrapping a radio + a
+   badge + a hint. The form-wide rules (`form label { display: block }`
+   and `form input { display: block; width: 100% }`) would otherwise stretch
+   the radio across the full card width and push the badge onto a new line,
+   so we override both inside .login-db-option. */
+
+.login-form {
+  border-top: 4px solid #ffeeba;        /* default = test = amber */
+  transition: border-color 120ms ease;
+}
+.login-form:has(input[name="database"][value="live"]:checked) {
+  border-top-color: #c3e6cb;            /* live = green */
+}
+
+.login-db-select {
+  border: 1px solid #d6def0;
+  border-radius: 6px;
+  padding: 10px 14px 12px;
+  margin: 1em 0;
+}
+.login-db-select legend {
+  padding: 0 6px;
+  font-size: .85em;
+  font-weight: 600;
+  color: #555;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.login-db-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  margin: 0;                            /* override form label margin */
+  font-size: .95em;
+  cursor: pointer;
+}
+.login-db-option input[type="radio"] {
+  display: inline-block;                /* override form input { display: block } */
+  width: auto;                          /* override form input { width: 100% } */
+  margin: 0;
+  flex: 0 0 auto;
+}
+.login-db-hint {
+  font-size: .85em;
+  color: #777;
+}

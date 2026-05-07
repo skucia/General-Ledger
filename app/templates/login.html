@@ -1,10 +1,17 @@
-{# Login form. Submits to POST /login. No CSRF token in this phase. #}
+{#
+  Login form. Submits to POST /login.
+
+  The Database radio group is REQUIRED — the chosen value is stored in the
+  session and routes every subsequent query for the session. Default
+  selection is always 'test', regardless of how the user got here, so
+  picking 'live' is always a deliberate act.
+#}
 {% extends "base.html" %}
 {% block title %}Login — General Ledger{% endblock %}
 
 {% block content %}
 <h2>Login</h2>
-<form method="post" action="/login" class="card">
+<form method="post" action="/login" class="card login-form">
   <label>
     Username
     <input name="username" required autofocus autocomplete="username" />
@@ -14,6 +21,22 @@
     Password
     <input name="password" type="password" required autocomplete="current-password" />
   </label>
+
+  <fieldset class="login-db-select">
+    <legend>Database</legend>
+
+    <label class="login-db-option login-db-option--test">
+      <input type="radio" name="database" value="test" checked />
+      <span class="env-badge env-test">Test</span>
+      <span class="login-db-hint">historical fixture — safe to experiment</span>
+    </label>
+
+    <label class="login-db-option login-db-option--live">
+      <input type="radio" name="database" value="live" />
+      <span class="env-badge env-live">Live</span>
+      <span class="login-db-hint">real data — be deliberate</span>
+    </label>
+  </fieldset>
 
   <button type="submit">Sign in</button>
 </form>

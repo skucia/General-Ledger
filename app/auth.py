@@ -13,6 +13,7 @@ away from admin routes.
 
 from fastapi import Depends, Request
 
+from app.config import DATABASES
 from app.services import users as users_service
 
 
@@ -41,9 +42,17 @@ def get_current_user(request: Request) -> dict:
     Returns the user dict for the logged-in user, or raises a redirect
     exception if there's no session, the user no longer exists, or they
     haven't completed their forced password change yet.
+
+    A valid session requires BOTH user_id AND a db_key in the allowed list.
+    Missing/invalid db_key means the user can't be safely looked up — we
+    clear the session and force re-login rather than silently falling
+    back to the .env-configured database.
     """
     user_id = request.session.get("user_id")
-    if not user_id:
+    db_key = request.session.get("db_key")
+    if not user_id or db_key not in DATABASES:
+        # Wipe any partial state so the next /login starts cleanly.
+        request.session.clear()
         raise NotAuthenticated()
 
     user = users_service.get_user_by_id(user_id)

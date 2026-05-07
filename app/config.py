@@ -7,8 +7,18 @@ instead of reading os.environ directly, so we have one place to change config.
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict
 
 from dotenv import load_dotenv
+
+# Available databases for in-app selection at login. Hardcoded by design —
+# adding a new DB means a deliberate code change. The KEY ('test'/'live')
+# is what gets stored in the session; the VALUE is the actual Postgres
+# database name. The shared host/port/user/password come from .env.
+DATABASES: Dict[str, str] = {
+    "test": "generalledger_test",
+    "live": "generalledger_live",
+}
 
 # Find the project root (one level up from this file's directory: app/ -> project/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -50,14 +60,34 @@ class Settings:
     # if the file is missing so the app boots regardless).
     app_version: str
 
-    @property
-    def db_dsn(self) -> str:
-        """psycopg connection string built from the individual fields."""
+    def _build_dsn(self, db_name: str) -> str:
         return (
             f"host={self.db_host} port={self.db_port} "
-            f"dbname={self.db_name} user={self.db_user} "
+            f"dbname={db_name} user={self.db_user} "
             f"password={self.db_password}"
         )
+
+    @property
+    def db_dsn(self) -> str:
+        """
+        psycopg DSN for the .env-configured database. Used by system scripts
+        (run_migrations, create_admin) and as a fallback inside get_connection
+        when no per-request database has been selected.
+        """
+        return self._build_dsn(self.db_name)
+
+    def db_dsn_for(self, db_key: str) -> str:
+        """
+        psycopg DSN for one of the in-app selectable databases.
+        `db_key` must be a key in app.config.DATABASES ('test' or 'live').
+        Shares host/port/user/password with .env; only the dbname differs.
+        """
+        if db_key not in DATABASES:
+            raise ValueError(
+                f"Unknown database key: {db_key!r}. "
+                f"Allowed: {sorted(DATABASES)}"
+            )
+        return self._build_dsn(DATABASES[db_key])
 
 
 def _read_version() -> str:
