@@ -6,6 +6,7 @@ need a separate dependency.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -104,3 +105,20 @@ def _format_date_dmy(value: Any) -> str:
 
 # Usage in templates: {{ created_at|date_dmy }}
 templates.env.filters["date_dmy"] = _format_date_dmy
+
+
+def _format_money(value: Any) -> str:
+    """
+    Jinja filter: render a Decimal/float/int amount with thousands separators
+    and two decimal places, e.g. 92000 -> '92,000.00'. Returns '' for None.
+    Mirrors the backend `_fmt_amt` used by the report routes.
+    """
+    if value is None:
+        return ""
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    return f"{value:,.2f}"
+
+
+# Usage in templates: {{ amount|money }}
+templates.env.filters["money"] = _format_money

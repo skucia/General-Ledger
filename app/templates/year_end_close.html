@@ -45,9 +45,9 @@
   <p>
     Net P&amp;L for the period:
     {% if preview.profit_or_loss > 0 %}
-      <strong class="profit">Profit of {{ '%.2f'|format(preview.profit_or_loss) }}</strong>
+      <strong class="profit">Profit of {{ preview.profit_or_loss|money }}</strong>
     {% elif preview.profit_or_loss < 0 %}
-      <strong class="loss">Loss of {{ '%.2f'|format(-preview.profit_or_loss) }}</strong>
+      <strong class="loss">Loss of {{ (-preview.profit_or_loss)|money }}</strong>
     {% else %}
       <strong>Zero (revenue and costs net to zero exactly)</strong>
     {% endif %}
@@ -85,7 +85,7 @@
               <em>(balancing entry)</em>
             {% endif %}
           </td>
-          <td class="amt">{{ '%.2f'|format(line.amount) }}</td>
+          <td class="amt">{{ line.amount|money }}</td>
         </tr>
       {% endfor %}
     </tbody>
