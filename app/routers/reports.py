@@ -426,6 +426,7 @@ def balance_sheet(
         "equity": _format_bs_section(bs["equity"]),
         "total_assets_display":             _fmt_amt_paren(bs["total_assets"]),
         "total_liabilities_display":        total_liab_subtractive,
+        "net_assets":                       bs["net_assets"],
         "net_assets_display":               _fmt_amt_paren(bs["net_assets"]),
         "total_equity_display":             _fmt_amt_paren(bs["total_equity"]),
         "profit_or_loss":                   bs["profit_or_loss"],
