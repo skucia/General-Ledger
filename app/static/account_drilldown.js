@@ -49,6 +49,18 @@
       a.dataset.filename = line.attachment_filename;
       a.addEventListener('click', handleAttachmentClick);
       td.appendChild(a);
+    } else if (fileInput) {
+      // No attachment yet — full users get an "+ Add" link that opens the
+      // shared file picker for this transaction id. View-only users (no
+      // fileInput rendered) just get an empty cell.
+      const addLink = document.createElement('a');
+      addLink.href = '#';
+      addLink.className = 'add-attachment-link';
+      addLink.textContent = '+ Add';
+      addLink.title = 'Add attachment';
+      addLink.dataset.transactionId = line.transaction_id;
+      addLink.addEventListener('click', handleAddAttachmentClick);
+      td.appendChild(addLink);
     }
     return td;
   }
@@ -70,6 +82,31 @@
   const viewerTitle = document.getElementById('viewer-title');
   const viewerNewTab = document.getElementById('viewer-newtab');
   const viewerCloseBtn = viewer ? viewer.querySelector('.modal-close') : null;
+  const viewerReplaceBtn = document.getElementById('viewer-replace');
+  const viewerDeleteBtn = document.getElementById('viewer-delete');
+
+  // Shared hidden file input. Present only for full users — view-only users
+  // never see "+ Add" or Replace. dataset.mode tells the change-handler
+  // which path to take ('add' or 'replace') so the same input serves both.
+  const fileInput = document.getElementById('attachment-file-input');
+
+  // Remembers the last-opened drill-down context so we can re-fetch and
+  // re-render the modal after an attachment add / replace / delete.
+  let currentAccount = null;  // { number, name, type_label } from last fetch
+
+  async function refreshDrillDown() {
+    if (!currentAccount) return;
+    const params = new URLSearchParams();
+    if (toDate) params.set('to_date', toDate);
+    if (fromDate) params.set('from_date', fromDate);
+    const url = '/reports/account-detail/' + encodeURIComponent(currentAccount.number)
+              + '?' + params.toString();
+    try {
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) return;  // best-effort refresh; leave modal as-is on error
+      renderDetail(await res.json());
+    } catch (_) { /* ignore — refresh is best-effort */ }
+  }
 
   // Lowercase extension list -> rendering strategy.
   const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']);
@@ -162,6 +199,8 @@
     if (!viewer) return;
     const url = '/attachments/' + encodeURIComponent(transactionId);
 
+    // Stash the txn id so Replace / Delete know what they're acting on.
+    viewer.dataset.transactionId = transactionId;
     viewerTitle.textContent = filename || 'Attachment';
     viewerNewTab.href = url;
     viewerNewTab.title = filename || '';
@@ -224,6 +263,96 @@
     });
   }
 
+  // --- Add / Replace / Delete attachment ---------------------------------
+
+  async function uploadAttachment(transactionId, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/attachments/' + encodeURIComponent(transactionId), {
+      method: 'POST',
+      body: fd,
+    });
+    if (!res.ok) {
+      let msg = 'Upload failed (HTTP ' + res.status + ').';
+      try {
+        const body = await res.json();
+        if (body && body.detail) msg = body.detail;
+      } catch (_) { /* non-JSON error body */ }
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  async function deleteAttachmentRequest(transactionId) {
+    const res = await fetch(
+      '/attachments/' + encodeURIComponent(transactionId) + '/delete',
+      { method: 'POST' }
+    );
+    if (!res.ok) {
+      throw new Error('Delete failed (HTTP ' + res.status + ').');
+    }
+    return res.json();
+  }
+
+  function handleAddAttachmentClick(e) {
+    e.preventDefault();
+    if (!fileInput) return;
+    const txnId = e.currentTarget.dataset.transactionId;
+    fileInput.dataset.mode = 'add';
+    fileInput.dataset.transactionId = txnId;
+    fileInput.value = '';        // allow re-picking the same file later
+    fileInput.click();
+  }
+
+  function handleViewerReplaceClick() {
+    if (!fileInput || !viewer.dataset.transactionId) return;
+    fileInput.dataset.mode = 'replace';
+    fileInput.dataset.transactionId = viewer.dataset.transactionId;
+    fileInput.value = '';
+    fileInput.click();
+  }
+
+  async function handleFileInputChange() {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const txnId = fileInput.dataset.transactionId;
+    const mode = fileInput.dataset.mode;
+    try {
+      await uploadAttachment(txnId, file);
+    } catch (err) {
+      alert(err.message);
+      return;
+    }
+    if (mode === 'replace') viewer.close();
+    await refreshDrillDown();
+  }
+
+  async function handleViewerDeleteClick() {
+    const txnId = viewer.dataset.transactionId;
+    if (!txnId) return;
+    if (!confirm('Delete this attachment? The file cannot be recovered.')) return;
+    try {
+      await deleteAttachmentRequest(txnId);
+    } catch (err) {
+      alert(err.message);
+      return;
+    }
+    viewer.close();
+    await refreshDrillDown();
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', handleFileInputChange);
+  }
+  if (viewerReplaceBtn) {
+    viewerReplaceBtn.addEventListener('click', handleViewerReplaceClick);
+  }
+  if (viewerDeleteBtn) {
+    viewerDeleteBtn.addEventListener('click', handleViewerDeleteClick);
+  }
+
+  // ----------------------------------------------------------------------
+
   function buildLineRow(line) {
     const tr = document.createElement('tr');
     tr.appendChild(buildCell(line.date_dmy));
@@ -237,6 +366,7 @@
   }
 
   function renderDetail(data) {
+    currentAccount = data.account;  // remembered so attachment ops can refresh
     titleEl.textContent = 'Account ' + data.account.number + ' — ' + data.account.name;
     // Subtitle adapts to the mode the report is using:
     //   range mode (P&L)  -> "From dd/mm/yyyy to dd/mm/yyyy"

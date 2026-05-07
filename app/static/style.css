@@ -988,10 +988,11 @@ dialog.account-modal .dialog-content {
   white-space: nowrap;
 }
 
-/* Attachment column — narrow icon-only column at the right edge. */
+/* Attachment column — narrow column at the right edge. Wide enough
+   for either the 📎 icon or a "+ Add" link. */
 .detail-table th.att-col,
 .detail-table td.att-col {
-  width: 2em;
+  width: 4em;
   text-align: center;
   padding-left: 6px;
   padding-right: 6px;
@@ -1004,6 +1005,15 @@ dialog.account-modal .dialog-content {
 }
 .detail-table a.attachment-link:hover {
   transform: scale(1.15);
+}
+.detail-table a.add-attachment-link {
+  font-size: .85em;
+  color: #2a5db0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.detail-table a.add-attachment-link:hover {
+  text-decoration: underline;
 }
 
 /* --- Attachment viewer modal --------------------------------------------
@@ -1143,8 +1153,6 @@ canvas.pdf-page {
       font-size: 9pt;
       color: #555;
     }
-  }
-}
   }
 }
 

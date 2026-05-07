@@ -1,29 +1,39 @@
 """
-Serve transaction attachments for in-browser viewing.
+Transaction attachments — view, add, replace, delete.
+
+  GET   /attachments/{transaction_id}         — serve the file inline (any user)
+  POST  /attachments/{transaction_id}         — add or replace (full users)
+  POST  /attachments/{transaction_id}/delete  — remove (full users)
 
 Security:
-  - Login required (any logged-in user may view attachments).
+  - Login required (get_current_user) for view; full-user role required
+    (require_full_user) for add/replace/delete — view-only users get a
+    redirect-to-/menu via the NotFullUser handler.
   - The URL path takes a transaction_id (an integer); the actual on-disk
     filename (UUID-based) is looked up from the DB. Users can never
     influence which file is served beyond pointing at a transaction id.
-  - 404 if the transaction does not exist OR has no attachment OR the
-    file is missing on disk.
 
-Browsers: we set Content-Disposition: inline (so PDFs / images render
-in-tab) and include the original filename via RFC 6266 percent-encoded
+Period locks: deliberately NOT enforced for add/replace/delete.
+Attachments are documentation, not financial substance — see the
+trigger refinement in migration 009.
+
+Browsers: GET sets Content-Disposition: inline (so PDFs / images render
+in-tab) and includes the original filename via RFC 6266 percent-encoded
 filename* so saving keeps the friendly name.
 """
 
 import mimetypes
+from typing import Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from psycopg.rows import dict_row
 
-from app.auth import get_current_user
+from app.auth import get_current_user, require_full_user
 from app.config import settings
 from app.db import get_connection
+from app.services import attachments as attachments_service
 
 router = APIRouter()
 
@@ -81,3 +91,54 @@ def serve_attachment(
         media_type=media_type,
         headers={"Content-Disposition": content_disposition},
     )
+
+
+# --- Add / Replace ---------------------------------------------------------
+
+@router.post("/attachments/{transaction_id}")
+async def upload_attachment(
+    transaction_id: int,
+    user: dict = Depends(require_full_user),
+    file: Optional[UploadFile] = File(None),
+):
+    """
+    Add a new attachment, or replace an existing one. Same operation either
+    way — the service layer handles old-file cleanup. JSON response:
+        { "ok": true, "transaction_id": int, "attachment_filename": str }
+    """
+    if file is None or not file.filename:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+
+    file_bytes = await file.read()
+
+    try:
+        result = attachments_service.replace_attachment(
+            transaction_id=transaction_id,
+            file_bytes=file_bytes,
+            original_name=file.filename,
+        )
+    except attachments_service.TransactionNotFoundError:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+    except attachments_service.AttachmentTooLargeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return JSONResponse({"ok": True, **result})
+
+
+# --- Delete ----------------------------------------------------------------
+
+@router.post("/attachments/{transaction_id}/delete")
+def delete_attachment(
+    transaction_id: int,
+    user: dict = Depends(require_full_user),
+):
+    """
+    Remove the attachment from a transaction. JSON response:
+        { "ok": true, "transaction_id": int, "attachment_filename": null }
+    """
+    try:
+        result = attachments_service.delete_attachment(transaction_id)
+    except attachments_service.TransactionNotFoundError:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+
+    return JSONResponse({"ok": True, **result})

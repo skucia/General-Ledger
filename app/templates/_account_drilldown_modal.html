@@ -42,7 +42,15 @@
    📎 link is clicked. Native <dialog> supports stacking via showModal();
    closing this returns control to the drill-down modal underneath. The
    "Open in new tab" link is a fallback for any file the in-page viewer
-   can't render. #}
+   can't render.
+
+   Replace and Delete are hidden for view-only users. The transaction id
+   is stashed on the dialog's data-transaction-id attribute by the JS
+   when the viewer opens.
+
+   The hidden #attachment-file-input is shared by both the per-row "+ Add"
+   action and the in-viewer Replace action. The JS sets a dataset flag
+   before triggering it so the change-handler knows what context it's in. #}
 <dialog id="attachment-viewer" class="attachment-viewer no-print">
   <div class="dialog-content">
     <header class="modal-header">
@@ -51,6 +59,10 @@
         <a id="viewer-newtab" href="#" target="_blank" rel="noopener" class="btn-secondary">
           Open in new tab
         </a>
+        {% if user and user.user_type == 'full' %}
+          <button type="button" id="viewer-replace" class="btn-secondary">Replace</button>
+          <button type="button" id="viewer-delete" class="btn-secondary">Delete</button>
+        {% endif %}
         <button type="button" class="modal-close" aria-label="Close">×</button>
       </div>
     </header>
@@ -60,5 +72,12 @@
     </div>
   </div>
 </dialog>
+
+{# Shared hidden file input — used by both "+ Add" (from a drill-down row)
+   and viewer Replace. Only rendered for full users; view-only users never
+   reach the upload paths. #}
+{% if user and user.user_type == 'full' %}
+  <input type="file" id="attachment-file-input" hidden accept="application/pdf,image/*" />
+{% endif %}
 
 <script src="{{ versioned_static('account_drilldown.js') }}"></script>
