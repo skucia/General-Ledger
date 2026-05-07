@@ -71,6 +71,54 @@ body > header nav {
   white-space: nowrap;
 }
 
+/* --- Year-End Close --- */
+
+.year-end-close-form    { margin: 1.5em 0; }
+.year-end-close-confirm { margin: 1.5em 0; }
+
+.year-end-close-confirm .profit { color: #1b7f1b; }
+.year-end-close-confirm .loss   { color: #b03030; }
+
+/* Closing-journal preview table — fixed columns so the layout doesn't
+   shift between confirm previews of different shapes. */
+.yec-table {
+  width: 100%;
+  margin: 1em 0 1.5em;
+  table-layout: fixed;
+}
+.yec-table col.col-drcr   { width: 70px;  }
+.yec-table col.col-acct   { width: 120px; }
+.yec-table col.col-name   { width: auto;  }
+.yec-table col.col-amount { width: 140px; }
+
+/* The 3100 balancing row stands out so the auditor can find it at a glance. */
+.yec-table tr.yec-balancing-entry td {
+  background: #eef2f7;
+  font-weight: 600;
+  border-top: 2px solid #2a5db0;
+}
+
+.yec-warning-panel {
+  margin: 1.5em 0;
+  padding: 1em 1.5em;
+  background: #fff8d8;
+  border: 1px solid #e8d27a;
+  border-radius: 6px;
+}
+.yec-warning-panel ol { margin: .5em 0 0 1.5em; padding: 0; }
+.yec-warning-panel ol li { margin: .25em 0; }
+
+.year-end-close-confirm .confirm-actions {
+  display: flex;
+  gap: 1em;
+  align-items: center;
+  margin-top: 1em;
+}
+.year-end-close-confirm .btn-secondary {
+  text-decoration: none;
+  padding: .5em 1em;
+}
+
 /* --- Period Locks admin page --- */
 
 .period-lock-current { margin: 1.5em 0; }

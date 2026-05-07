@@ -1,0 +1,126 @@
+{#
+  Admin-only Year-End Close. Two modes via the `mode` variable:
+    'form'    — initial date picker (default: 31/12 of previous year)
+    'confirm' — preview of the closing journal + warning + confirm button
+
+  After a successful close, the route handler redirects to
+  /admin/period-locks with a success flash, so this template doesn't
+  render anything on the success path.
+#}
+{% extends "base.html" %}
+{% block title %}Year-End Close — General Ledger{% endblock %}
+
+{% block content %}
+<h2>Year-End Close</h2>
+
+<p class="notice">
+  Year-end close zeroes every revenue and cost account in the period
+  and rolls the net result into account 3100 (Retained Earnings).
+  After the closing journal is posted, the period is automatically
+  locked. <strong>This action cannot be undone via the UI.</strong>
+</p>
+
+{% if errors %}
+  <ul class="flashes">
+    {% for e in errors %}<li class="flash flash-error">{{ e }}</li>{% endfor %}
+  </ul>
+{% endif %}
+
+{% if mode == 'confirm' %}
+<section class="year-end-close-confirm">
+  <h3>Confirm year-end close</h3>
+
+  <p>
+    Closing for period ending <strong>{{ preview.close_date|date_dmy }}</strong>.
+    {% if preview.last_close_date %}
+      Period: {{ preview.period_start|date_dmy }} to
+      {{ preview.close_date|date_dmy }}
+      (since the last close on {{ preview.last_close_date|date_dmy }}).
+    {% else %}
+      Period: from inception to {{ preview.close_date|date_dmy }}
+      (no previous close exists).
+    {% endif %}
+  </p>
+
+  <p>
+    Net P&amp;L for the period:
+    {% if preview.profit_or_loss > 0 %}
+      <strong class="profit">Profit of {{ '%.2f'|format(preview.profit_or_loss) }}</strong>
+    {% elif preview.profit_or_loss < 0 %}
+      <strong class="loss">Loss of {{ '%.2f'|format(-preview.profit_or_loss) }}</strong>
+    {% else %}
+      <strong>Zero (revenue and costs net to zero exactly)</strong>
+    {% endif %}
+  </p>
+
+  <h4>Closing journal</h4>
+  <p>
+    Reference: <code>{{ preview.journal_reference }}</code><br>
+    Description: <em>{{ preview.journal_description }}</em>
+  </p>
+
+  <table class="lines-table yec-table">
+    <colgroup>
+      <col class="col-drcr" />
+      <col class="col-acct" />
+      <col class="col-name" />
+      <col class="col-amount" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th>DR/CR</th>
+        <th>Account #</th>
+        <th>Account Name</th>
+        <th class="amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in preview.lines %}
+        <tr {% if line.is_balancing_entry %}class="yec-balancing-entry"{% endif %}>
+          <td>{{ line.dr_cr }}</td>
+          <td>{{ line.account_number }}</td>
+          <td>
+            {{ line.account_name }}
+            {% if line.is_balancing_entry %}
+              <em>(balancing entry)</em>
+            {% endif %}
+          </td>
+          <td class="amt">{{ '%.2f'|format(line.amount) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="yec-warning-panel">
+    <p><strong>This action will:</strong></p>
+    <ol>
+      <li>Post the closing journal above, dated <strong>{{ preview.close_date|date_dmy }}</strong></li>
+      <li>Lock all transactions on or before <strong>{{ preview.close_date|date_dmy }}</strong></li>
+      <li><strong>Cannot be undone via the UI</strong></li>
+    </ol>
+  </div>
+
+  <form method="post" action="/admin/year-end-close" class="card">
+    <input type="hidden" name="close_date" value="{{ preview.close_date.isoformat() }}" />
+    <input type="hidden" name="confirmed" value="yes" />
+    <div class="confirm-actions">
+      <button type="submit">I confirm — post and lock</button>
+      <a href="/admin/year-end-close" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="year-end-close-form">
+  <h3>Run year-end close</h3>
+  <form method="post" action="/admin/year-end-close" class="card">
+    <label>
+      Close date
+      <input type="date" name="close_date" required value="{{ form_date }}" />
+    </label>
+    <button type="submit">Preview close</button>
+  </form>
+</section>
+{% endif %}
+
+<p><a href="/menu">← Back to menu</a></p>
+{% endblock %}

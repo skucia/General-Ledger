@@ -29,6 +29,7 @@ from app.routers import period_locks as period_locks_router
 from app.routers import reports as reports_router
 from app.routers import transactions as transactions_router
 from app.routers import users as users_router
+from app.routers import year_end_close as year_end_close_router
 from app.templating import flash
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -83,3 +84,4 @@ app.include_router(transactions_router.router)
 app.include_router(reports_router.router)
 app.include_router(attachments_router.router)
 app.include_router(period_locks_router.router)
+app.include_router(year_end_close_router.router)

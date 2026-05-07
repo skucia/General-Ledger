@@ -86,12 +86,15 @@ class PeriodLockedError(Exception):
 # function below is THE single chokepoint that every transaction write
 # path must call. The DB trigger in migration 006 is the safety net.
 
-def _assert_period_open(transaction_date: date, operation: str = "post") -> None:
+def assert_period_open(transaction_date: date, operation: str = "post") -> None:
     """
     THE single chokepoint for the period-lock check. Every transaction
     write path MUST call this before issuing the SQL. Raises
     PeriodLockedError if `transaction_date` is on or before the current
     lock date.
+
+    Public so other services (year_end_close) can call it as a defensive
+    pre-insert check inside their own atomic blocks.
 
     The DB trigger in migration 006 is the safety net for any code path
     that bypasses this function (direct SQL, future write paths added
@@ -100,6 +103,80 @@ def _assert_period_open(transaction_date: date, operation: str = "post") -> None
     lock_date = get_current_lock_date()
     if lock_date is not None and transaction_date <= lock_date:
         raise PeriodLockedError(transaction_date, lock_date, operation)
+
+
+# --- Insertion primitive --------------------------------------------------
+
+def insert_transaction_within(
+    cur,
+    *,
+    transaction_date: date,
+    description: str,
+    transaction_reference: str,
+    attachment_filename: Optional[str],
+    attachment_original_name: Optional[str],
+    created_by: int,
+    lines: List[TransactionLineInput],
+    reverses_transaction_id: Optional[int] = None,
+    journal_type: str = "STANDARD",
+) -> int:
+    """
+    Insert a transaction header + lines using the GIVEN cursor. The
+    caller owns the connection and is responsible for commit / rollback.
+
+    Used by:
+      - post_transaction()                — public single-transaction posting
+      - year_end_close.execute_close()    — runs in an atomic block that
+        also inserts into period_locks within the same DB transaction
+
+    Does NOT call assert_period_open(); callers must invoke it before
+    using this helper. The DB trigger (migration 006) is the safety net
+    against bypass.
+    """
+    cur.execute(
+        """
+        INSERT INTO transactions (
+            transaction_date,
+            description,
+            transaction_reference,
+            attachment_path,
+            attachment_original_name,
+            created_by,
+            reverses_transaction_id,
+            journal_type
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            transaction_date,
+            description,
+            transaction_reference,
+            attachment_filename,
+            attachment_original_name,
+            created_by,
+            reverses_transaction_id,
+            journal_type,
+        ),
+    )
+    txn_id = cur.fetchone()[0]
+
+    for line in lines:
+        cur.execute(
+            """
+            INSERT INTO transaction_lines (
+                transaction_id, dr_cr, account_number, amount
+            )
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                txn_id,
+                line["dr_cr"],
+                line["account_number"],
+                line["amount"],
+            ),
+        )
+    return txn_id
 
 
 # --- Posting --------------------------------------------------------------
@@ -116,58 +193,31 @@ def post_transaction(
 ) -> int:
     """
     Insert one transaction header + its lines atomically. Returns the new
-    transaction id.
+    transaction id. Always inserts with journal_type='STANDARD' — the
+    Year-End Close service uses insert_transaction_within() directly to
+    pass 'YEAR_END_CLOSE'.
 
     Raises:
-      PeriodLockedError      — date falls in a locked period
+      PeriodLockedError          — date falls in a locked period
       UnbalancedTransactionError — DR sum != CR sum (DB trigger at COMMIT)
     """
     # Chokepoint — every transaction write goes through this.
-    _assert_period_open(transaction_date, operation="post")
+    assert_period_open(transaction_date, operation="post")
 
     try:
         with get_connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO transactions (
-                    transaction_date,
-                    description,
-                    transaction_reference,
-                    attachment_path,
-                    attachment_original_name,
-                    created_by,
-                    reverses_transaction_id
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (
-                    transaction_date,
-                    description,
-                    transaction_reference,
-                    attachment_filename,
-                    attachment_original_name,
-                    created_by,
-                    reverses_transaction_id,
-                ),
+            txn_id = insert_transaction_within(
+                cur,
+                transaction_date=transaction_date,
+                description=description,
+                transaction_reference=transaction_reference,
+                attachment_filename=attachment_filename,
+                attachment_original_name=attachment_original_name,
+                created_by=created_by,
+                lines=lines,
+                reverses_transaction_id=reverses_transaction_id,
+                journal_type="STANDARD",
             )
-            txn_id = cur.fetchone()[0]
-
-            for line in lines:
-                cur.execute(
-                    """
-                    INSERT INTO transaction_lines (
-                        transaction_id, dr_cr, account_number, amount
-                    )
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    (
-                        txn_id,
-                        line["dr_cr"],
-                        line["account_number"],
-                        line["amount"],
-                    ),
-                )
             # COMMIT happens here as the context manager exits. The deferred
             # balance trigger fires at COMMIT — if the totals don't match,
             # Postgres raises and our context manager rolls back.
