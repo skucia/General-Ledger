@@ -387,17 +387,17 @@ _CR_NATURAL_BS_TYPES = {"L", "E"} # Liabilities and Equity in the BS body
 
 def balance_sheet(as_of: date) -> dict:
     """
-    Balance Sheet presentation:
+    Balance Sheet presentation (Net Assets format):
       {
         "assets":               [{account_number, account_name, balance}, ...],
         "liabilities":          [...],
         "equity":               [...],
         "total_assets":         Decimal,
-        "total_liabilities":    Decimal,
+        "total_liabilities":    Decimal,   # natural-sign positive
+        "net_assets":           Decimal,   # total_assets − total_liabilities
         "total_equity":         Decimal,
         "profit_or_loss":       Decimal,   # from profit_loss_breakdown
-        "total_equity_with_pl": Decimal,
-        "total_liab_eq_pl":     Decimal,
+        "total_equity_with_pl": Decimal,   # Total Equity incl. period P/L; must == net_assets
         "balanced":             bool,
         "is_empty":             bool,      # True only when no A/L/E rows AND P/L == 0
       }
@@ -445,8 +445,8 @@ def balance_sheet(as_of: date) -> dict:
     pl_breakdown = _profit_loss_from_rows(rows)
     profit_or_loss = pl_breakdown["profit_or_loss"]
 
+    net_assets = total_assets - total_liabilities
     total_equity_with_pl = total_equity + profit_or_loss
-    total_liab_eq_pl = total_liabilities + total_equity_with_pl
 
     return {
         "assets": assets,
@@ -454,11 +454,11 @@ def balance_sheet(as_of: date) -> dict:
         "equity": equity,
         "total_assets": total_assets,
         "total_liabilities": total_liabilities,
+        "net_assets": net_assets,
         "total_equity": total_equity,
         "profit_or_loss": profit_or_loss,
         "total_equity_with_pl": total_equity_with_pl,
-        "total_liab_eq_pl": total_liab_eq_pl,
-        "balanced": total_assets == total_liab_eq_pl,
+        "balanced": net_assets == total_equity_with_pl,
         "is_empty": (
             not assets and not liabilities and not equity and profit_or_loss == 0
         ),

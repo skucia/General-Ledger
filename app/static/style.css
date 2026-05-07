@@ -623,7 +623,7 @@ form.txn-form > * + * { margin-top: 1.5em; }
   padding: 8px 20px !important;
 }
 
-/* Section subtotal rows (Total Assets / Liabilities / Equity / Equity incl. P/L). */
+/* Section subtotal rows (Total Assets / Liabilities / Equity). */
 .bs-subtotal td {
   background: #f4f6fa;
   border-top: 1px solid #c8d1e2;
@@ -631,6 +631,21 @@ form.txn-form > * + * { margin-top: 1.5em; }
   padding: 12px 20px !important;
   font-size: 1em;
   color: #222;
+}
+
+/* NET ASSETS row — heavier than a subtotal. The pivot point of the
+   audit-format balance sheet (Assets − Liabilities = Net Assets). */
+.bs-net-assets td {
+  background: #e6ecf6;
+  border-top: 2px solid #2a5db0;
+  border-bottom: 2px solid #2a5db0;
+  padding: 14px 20px !important;
+  font-size: 1.05em;
+  color: #2a5db0;
+  letter-spacing: .04em;
+}
+.bs-net-assets.bs-loss td.amt {
+  color: #b03030;
 }
 
 /* Profit / (Loss) for the period row — italic label, top border to set

@@ -413,19 +413,26 @@ def balance_sheet(
     bs = reports_service.balance_sheet(as_of_parsed)
 
     # Pre-format display strings so the template stays presentation-only.
+    # Total Liabilities displays in parens always (subtractive presentation: it
+    # gets deducted from Total Assets to derive Net Assets). Account-level
+    # liability rows still show as natural-sign positives.
+    total_liab = bs["total_liabilities"]
+    total_liab_subtractive = (
+        f"({total_liab:,.2f})" if total_liab != 0 else "0.00"
+    )
     data = {
         "assets": _format_bs_section(bs["assets"]),
         "liabilities": _format_bs_section(bs["liabilities"]),
         "equity": _format_bs_section(bs["equity"]),
-        "total_assets_display":         _fmt_amt_paren(bs["total_assets"]),
-        "total_liabilities_display":    _fmt_amt_paren(bs["total_liabilities"]),
-        "total_equity_display":         _fmt_amt_paren(bs["total_equity"]),
-        "profit_or_loss":               bs["profit_or_loss"],
-        "profit_or_loss_display":       _fmt_amt_paren(bs["profit_or_loss"]),
-        "total_equity_with_pl_display": _fmt_amt_paren(bs["total_equity_with_pl"]),
-        "total_liab_eq_pl_display":     _fmt_amt_paren(bs["total_liab_eq_pl"]),
-        "balanced":                     bs["balanced"],
-        "is_empty":                     bs["is_empty"],
+        "total_assets_display":             _fmt_amt_paren(bs["total_assets"]),
+        "total_liabilities_display":        total_liab_subtractive,
+        "net_assets_display":               _fmt_amt_paren(bs["net_assets"]),
+        "total_equity_display":             _fmt_amt_paren(bs["total_equity"]),
+        "profit_or_loss":                   bs["profit_or_loss"],
+        "profit_or_loss_display":           _fmt_amt_paren(bs["profit_or_loss"]),
+        "total_equity_with_pl_display":     _fmt_amt_paren(bs["total_equity_with_pl"]),
+        "balanced":                         bs["balanced"],
+        "is_empty":                         bs["is_empty"],
     }
 
     return templates.TemplateResponse(
