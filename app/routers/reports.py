@@ -258,7 +258,11 @@ def profit_and_loss(
     to_date: Optional[str] = None,    # ?to_date=YYYY-MM-DD
 ):
     today = date.today()
-    default_from = today.replace(day=1)  # first of current month
+    # Default From: earliest transaction in the ledger (so the pre-filled
+    # range actually contains the company's history). Falls back to first
+    # of current month if no transactions exist yet.
+    earliest = reports_service.get_earliest_transaction_date()
+    default_from = earliest if earliest else today.replace(day=1)
     default_to = today
     company_name = reports_service.get_company_name()
 

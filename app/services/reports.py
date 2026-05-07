@@ -30,6 +30,18 @@ def get_company_name() -> str:
         return row[0] if row else ""
 
 
+def get_earliest_transaction_date() -> Optional[date]:
+    """
+    Returns MIN(transaction_date) across all transactions, or None if the
+    ledger is empty. Used by the P&L default-from-date so the form
+    pre-fills with a range that actually contains the company's data.
+    """
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT MIN(transaction_date) FROM transactions")
+        row = cur.fetchone()
+        return row[0] if row and row[0] else None
+
+
 # --- Shared building block -------------------------------------------------
 
 def _account_balances(
