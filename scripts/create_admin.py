@@ -1,8 +1,8 @@
 """
 Interactive bootstrap script: creates the very first Admin user.
 
-Why this exists: the login screen (Phase 2) won't let anyone in until at least
-one admin exists in the users table. This script prompts for username, email,
+Why this exists: the login screen won't let anyone in until at least one
+admin exists in the users table. This script prompts for username, email,
 and password, then inserts the row with is_admin=TRUE and user_type='full'.
 
 Run from the project root (after run_migrations.py):
@@ -85,7 +85,7 @@ def main() -> int:
         )
         new_id = cur.fetchone()[0]
 
-    print(f"\nAdmin user '{username}' created (id={new_id}). You can now log in once Phase 2 is built.")
+    print(f"\nAdmin user '{username}' created (id={new_id}). You can now log in.")
     return 0
 
 
