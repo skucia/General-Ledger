@@ -1,5 +1,6 @@
-# Versions chosen to work on Python 3.9 (the system Python on this Mac).
-# If you upgrade to Python 3.11+ later you can bump these freely.
+# Tested on Python 3.9 (local dev on the Mac) and Python 3.12 (the
+# python:3.12-slim base used by the Dockerfile). Newer point releases of
+# anything below should be fine; bump deliberately when needed.
 
 # Web framework
 fastapi==0.111.1

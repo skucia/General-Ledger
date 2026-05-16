@@ -74,7 +74,16 @@ async def db_selection_middleware(request: Request, call_next):
 # Sign session cookies with the SESSION_SECRET from .env. Added LAST so it
 # ends up as the OUTER middleware — request.session is populated before the
 # DB-selection middleware above reads it.
-# https_only=False because we run on localhost http during development.
+#
+# Cookie security flags:
+#   - HttpOnly is enabled by Starlette's SessionMiddleware by default
+#     (not exposed as a parameter; always on). Blocks JS access to the
+#     cookie — XSS can't exfiltrate the session.
+#   - SameSite=lax limits cross-site cookie attachment to top-level
+#     navigations, mitigating CSRF for state-changing POSTs.
+#   - https_only=False is the right setting for the current plain-HTTP
+#     test deployment. TODO: flip to True once we put a TLS terminator
+#     (Traefik / Caddy) in front of the app on a real domain.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,

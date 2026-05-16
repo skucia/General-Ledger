@@ -1,0 +1,83 @@
+# General Ledger — Docker Compose orchestration.
+#
+# Three usage modes, all from this one file:
+#
+#   Mode A — Local dev against existing standalone gl-postgres container
+#     docker compose up app
+#     Only the `app` service runs. It reaches the standalone gl-postgres
+#     container on the host via host.docker.internal:5432.
+#     Set DB_HOST=host.docker.internal in .env for this mode.
+#
+#   Mode B — Full-stack local test (app + ephemeral test postgres)
+#     docker compose --profile fullstack up
+#     Both `app` and `postgres` services run. App reaches postgres via
+#     the internal Docker network (DB_HOST=postgres). Data lives in the
+#     gl_pgdata_test named volume — kept separate from any production
+#     volume so the two never collide on the same machine.
+#
+#   Mode C — Production on the VPS
+#     docker compose --profile fullstack up -d --build
+#     Same shape as Mode B but with a production .env. Postgres is NOT
+#     exposed to the host (no ports: section on the postgres service);
+#     only the app listens on 8000.
+
+services:
+
+  # --- The FastAPI app ---
+  # Available in every mode. Reads config from .env. The named volume
+  # gl_uploads gives attachments persistence across container rebuilds.
+  app:
+    build: .
+    image: general-ledger-app:latest
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - gl_uploads:/app/uploads
+    # Linux requires this for host.docker.internal to resolve to the
+    # host's gateway. macOS Docker Desktop sets it up automatically;
+    # leaving it here is a harmless no-op on macOS.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # In Mode A this depends_on is silently ignored (postgres is gated
+    # behind the `fullstack` profile and not selected). In Mode B/C the
+    # app waits for postgres to pass its healthcheck before starting.
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+
+  # --- Postgres ---
+  # Gated behind the `fullstack` profile so `docker compose up app`
+  # does not start it. Use `docker compose --profile fullstack up` to
+  # bring it up alongside the app.
+  postgres:
+    image: postgres:17-alpine
+    profiles: [fullstack]
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - gl_pgdata_test:/var/lib/postgresql/data
+    # No `ports:` block — postgres is intentionally NOT reachable from
+    # the host in production. Only the app container talks to it over
+    # the internal Docker network. To poke at it from the host, use
+    # `docker compose exec postgres psql ...`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  # Attachments — outlives any container. Mounted at /app/uploads
+  # inside the app container.
+  gl_uploads:
+  # Test/full-stack postgres data dir — kept distinct from anything you
+  # might run for production (which would use its own named volume).
+  gl_pgdata_test:

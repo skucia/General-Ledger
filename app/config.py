@@ -60,6 +60,10 @@ class Settings:
     # if the file is missing so the app boots regardless).
     app_version: str
 
+    # Login rate limiting — see app/rate_limit.py.
+    login_max_attempts: int
+    login_lockout_minutes: int
+
     def _build_dsn(self, db_name: str) -> str:
         return (
             f"host={self.db_host} port={self.db_port} "
@@ -99,10 +103,24 @@ def _read_version() -> str:
         return "0.0.0-dev"
 
 
+SESSION_SECRET_MIN_LENGTH = 32
+
+
 def _load_settings() -> Settings:
     upload_dir_raw = os.getenv("UPLOAD_DIR", "./uploads").strip()
     upload_dir = (PROJECT_ROOT / upload_dir_raw).resolve()
     upload_dir.mkdir(parents=True, exist_ok=True)
+
+    # Hard-fail at startup if SESSION_SECRET is missing or too short.
+    # Cookie integrity depends on a long, random secret — silently
+    # defaulting would be unsafe.
+    session_secret = _required("SESSION_SECRET")
+    if len(session_secret) < SESSION_SECRET_MIN_LENGTH:
+        raise RuntimeError(
+            f"SESSION_SECRET must be at least {SESSION_SECRET_MIN_LENGTH} characters "
+            f"(got {len(session_secret)}). Generate a strong value with:\n"
+            f'  python -c "import secrets; print(secrets.token_urlsafe(48))"'
+        )
 
     return Settings(
         db_host=_required("DB_HOST"),
@@ -110,9 +128,11 @@ def _load_settings() -> Settings:
         db_name=_required("DB_NAME"),
         db_user=_required("DB_USER"),
         db_password=_required("DB_PASSWORD"),
-        session_secret=_required("SESSION_SECRET"),
+        session_secret=session_secret,
         upload_dir=upload_dir,
         app_version=_read_version(),
+        login_max_attempts=int(os.getenv("LOGIN_MAX_ATTEMPTS", "5")),
+        login_lockout_minutes=int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15")),
     )
 
 

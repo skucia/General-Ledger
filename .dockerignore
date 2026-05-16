@@ -1,0 +1,51 @@
+# Anything matched here is excluded from the build context, so it
+# never ends up inside the image. Secrets, build artefacts, OS junk,
+# git history, the local venv, and runtime data all stay out.
+
+# Secrets — never bake into images
+.env
+.env.*
+!.env.example
+
+# Python build/run artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Local virtualenv (we install fresh inside the image)
+.venv/
+venv/
+
+# Git
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code local metadata
+.claude/
+
+# Runtime data — uploads are a named volume at runtime, not baked in
+uploads/
+
+# Database dumps
+backups/
+
+# Docs (kept in the repo, not needed at runtime)
+*.md
+docs/
+
+# The Dockerfile itself and compose files don't need to be inside the image
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml

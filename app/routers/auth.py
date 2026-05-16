@@ -15,6 +15,11 @@ from fastapi.responses import RedirectResponse
 from app.auth import get_current_user
 from app.config import DATABASES
 from app.db import set_active_db
+from app.rate_limit import (
+    check_login_lockout,
+    clear_login_failures,
+    record_login_failure,
+)
 from app.security import hash_password, verify_password
 from app.services import users as users_service
 from app.templating import flash, templates
@@ -49,19 +54,42 @@ def login_submit(
         flash(request, "Invalid username or password.", "error")
         return RedirectResponse("/login", status_code=303)
 
+    username_clean = username.strip()
+
+    # Rate-limit check BEFORE the DB lookup so a locked-out user gets the
+    # same response regardless of whether the username currently exists.
+    locked_minutes = check_login_lockout(database, username_clean)
+    if locked_minutes is not None:
+        unit = "minute" if locked_minutes == 1 else "minutes"
+        flash(
+            request,
+            f"Too many failed attempts. Try again in {locked_minutes} {unit}.",
+            "error",
+        )
+        return RedirectResponse("/login", status_code=303)
+
     # Run the user lookup against the user-selected database. The session
     # doesn't have db_key yet, so the middleware hasn't set the ContextVar
     # — we set it explicitly for this block.
     with set_active_db(database):
-        user = users_service.get_user_by_username(username.strip())
-        # Same generic error for "no such user", "wrong password", AND
-        # "user exists in the OTHER database" — don't leak which DB has
-        # which usernames.
-        if user is None or not verify_password(password, user["password_hash"]):
+        user = users_service.get_user_by_username(username_clean)
+        # Three failure modes share the same generic error message so we
+        # don't leak which DB has which usernames. But rate-limiter
+        # accounting splits them:
+        #   - user is None  -> "unknown username in chosen DB"; do NOT count
+        #                      (username enumeration concern)
+        #   - password fails -> count (covers both regular wrong-password
+        #                       and "right password but wrong DB picked")
+        if user is None:
+            flash(request, "Invalid username or password.", "error")
+            return RedirectResponse("/login", status_code=303)
+        if not verify_password(password, user["password_hash"]):
+            record_login_failure(database, username_clean)
             flash(request, "Invalid username or password.", "error")
             return RedirectResponse("/login", status_code=303)
 
-    # Successful login — store user_id AND db_key; the rest is re-fetched per request.
+    # Successful login — clear any prior failures, then store user_id + db_key.
+    clear_login_failures(database, username_clean)
     request.session["user_id"] = user["id"]
     request.session["db_key"] = database
 

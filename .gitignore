@@ -1,5 +1,8 @@
-# Secrets — never commit
+# Secrets — never commit. Any .env or .env.<something> stays out;
+# .env.example IS committed (it's the placeholder template).
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
