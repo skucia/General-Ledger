@@ -9,7 +9,7 @@ Validation order (errors short-circuit per-line where appropriate):
   2. At least 2 lines submitted.
   3. Each line: DR/CR ∈ {DR, CR}; account exists; amount is a positive Decimal.
   4. Σ DR == Σ CR (compared as Decimals).
-  5. Attachment (if any): size ≤ 10 MB.
+  5. Attachments (if any): up to 5 files, each ≤ 10 MB.
   6. Insert (header + lines) inside one DB transaction; deferred trigger is
      the fail-safe.
 
@@ -31,6 +31,7 @@ from fastapi.responses import RedirectResponse
 from app.auth import get_current_user, require_full_user
 from app.config import settings
 from app.services import accounts as accounts_service
+from app.services import attachments as attachments_service
 from app.services import transactions as transactions_service
 from app.templating import flash, templates
 
@@ -104,7 +105,7 @@ async def add_transaction_submit(
     dr_cr: List[str] = Form(default=[]),
     account_number: List[str] = Form(default=[]),
     amount: List[str] = Form(default=[]),
-    attachment: Optional[UploadFile] = File(None),
+    attachment: List[UploadFile] = File(default=[]),
 ):
     description = description.strip()
     transaction_reference = transaction_reference.strip()
@@ -194,19 +195,29 @@ async def add_transaction_submit(
                 f"Please correct and resubmit."
             )
 
-    # --- 5. Attachment ----------------------------------------------------
-    saved_filename: Optional[str] = None
-    original_name: Optional[str] = None
-    attachment_bytes: Optional[bytes] = None
-    if attachment is not None and attachment.filename:
-        attachment_bytes = await attachment.read()
-        if len(attachment_bytes) > MAX_ATTACHMENT_BYTES:
-            errors.append("Attachment is larger than 10 MB.")
-            attachment_bytes = None
-        else:
-            ext = Path(attachment.filename).suffix
-            saved_filename = f"{uuid4().hex}{ext}"
-            original_name = attachment.filename
+    # --- 5. Attachments (optional, up to 5) -------------------------------
+    # Hold each file's bytes until the whole form passes validation, so a
+    # later error doesn't leave orphaned files on disk. Each entry is
+    # {path, original_name, bytes}.
+    pending_attachments: List[dict] = []
+    uploaded = [f for f in (attachment or []) if f is not None and f.filename]
+    if len(uploaded) > attachments_service.MAX_ATTACHMENTS_PER_TXN:
+        errors.append(
+            f"You can attach at most "
+            f"{attachments_service.MAX_ATTACHMENTS_PER_TXN} files per transaction."
+        )
+    else:
+        for f in uploaded:
+            data = await f.read()
+            if len(data) > MAX_ATTACHMENT_BYTES:
+                errors.append(f"Attachment “{f.filename}” is larger than 10 MB.")
+                continue
+            ext = Path(f.filename).suffix
+            pending_attachments.append({
+                "path": f"{uuid4().hex}{ext}",
+                "original_name": f.filename,
+                "bytes": data,
+            })
 
     # --- Bail on validation errors ---------------------------------------
     if errors:
@@ -221,27 +232,28 @@ async def add_transaction_submit(
             status_code=400,
         )
 
-    # --- Save attachment, then post the transaction atomically -----------
-    if saved_filename and attachment_bytes is not None:
-        save_path = settings.upload_dir / saved_filename
-        save_path.write_bytes(attachment_bytes)
+    # --- Save attachments, then post the transaction atomically ----------
+    for att in pending_attachments:
+        (settings.upload_dir / att["path"]).write_bytes(att["bytes"])
 
     try:
         txn_id = transactions_service.post_transaction(
             transaction_date=txn_date,
             description=description,
             transaction_reference=transaction_reference,
-            attachment_filename=saved_filename,
-            attachment_original_name=original_name,
             created_by=user["id"],
             lines=parsed_lines,
+            attachments=[
+                {"path": a["path"], "original_name": a["original_name"]}
+                for a in pending_attachments
+            ],
         )
     except transactions_service.PeriodLockedError as exc:
-        # The transaction date falls in a closed period. Clean up the
-        # uploaded file (if any) and re-render the form with the friendly
-        # error message from the exception.
-        if saved_filename:
-            (settings.upload_dir / saved_filename).unlink(missing_ok=True)
+        # The transaction date falls in a closed period. Clean up any
+        # uploaded files and re-render the form with the friendly error
+        # message from the exception.
+        for att in pending_attachments:
+            (settings.upload_dir / att["path"]).unlink(missing_ok=True)
         return _render_form(
             request=request,
             user=user,

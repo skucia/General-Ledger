@@ -179,17 +179,23 @@ def post_transaction(
     transaction_date: date,
     description: str,
     transaction_reference: str,
-    attachment_filename: Optional[str],
-    attachment_original_name: Optional[str],
     created_by: int,
     lines: List[TransactionLineInput],
     reverses_transaction_id: Optional[int] = None,
+    attachments: Optional[List[dict]] = None,
 ) -> int:
     """
     Insert one transaction header + its lines atomically. Returns the new
     transaction id. Always inserts with journal_type='STANDARD' — the
     Year-End Close service uses insert_transaction_within() directly to
     pass 'YEAR_END_CLOSE'.
+
+    `attachments` is an optional list of {"path", "original_name"} dicts
+    (files already written to disk by the caller). Each becomes a row in
+    transaction_attachments within the same DB transaction, so they commit
+    atomically with the header + lines. More can be added later via the
+    attachments service (the 5-per-transaction cap is enforced there and
+    by the caller at entry time).
 
     Raises:
       PeriodLockedError          — date falls in a locked period
@@ -210,11 +216,10 @@ def post_transaction(
                 reverses_transaction_id=reverses_transaction_id,
                 journal_type="STANDARD",
             )
-            # Optional post-time attachment (single file). Written into the
+            # Optional post-time attachments. Written into the
             # transaction_attachments child table within the SAME DB
-            # transaction so it commits atomically with the header + lines.
-            # Further files can be added later via the attachments service.
-            if attachment_filename:
+            # transaction so they commit atomically with the header + lines.
+            for att in (attachments or []):
                 cur.execute(
                     """
                     INSERT INTO transaction_attachments
@@ -224,8 +229,8 @@ def post_transaction(
                     """,
                     (
                         txn_id,
-                        attachment_filename,
-                        attachment_original_name or attachment_filename,
+                        att["path"],
+                        att["original_name"] or att["path"],
                         created_by,
                     ),
                 )
@@ -343,8 +348,6 @@ def reverse_transaction(
         transaction_date=actual_date,
         description=new_desc,
         transaction_reference=new_ref,
-        attachment_filename=None,
-        attachment_original_name=None,
         created_by=created_by,
         lines=reversed_lines,
         reverses_transaction_id=transaction_id,
