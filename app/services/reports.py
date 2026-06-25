@@ -237,7 +237,7 @@ def journal_listing(
             "reference": str,
             "description": str,
             "posted_by": str,
-            "attachment_filename": str | None,   # original filename, None if no attachment
+            "attachments": [{"id": int, "filename": str}, ...],  # 0..N files
             "lines": [{dr_cr, account_number, account_name, amount}, ...],
             "total_dr": Decimal,
             "total_cr": Decimal,
@@ -271,8 +271,6 @@ def journal_listing(
                t.transaction_date,
                t.transaction_reference,
                t.description,
-               t.attachment_path,
-               t.attachment_original_name,
                u.username AS posted_by
           FROM transactions t
           JOIN users u ON u.id = t.created_by
@@ -315,10 +313,29 @@ def journal_listing(
         )
         all_lines = cur.fetchall()
 
+        # Attachments per transaction (0..N), oldest first.
+        cur.execute(
+            """
+            SELECT transaction_id, id, attachment_original_name
+              FROM transaction_attachments
+             WHERE transaction_id = ANY(%s)
+             ORDER BY transaction_id, id
+            """,
+            (txn_ids,),
+        )
+        all_atts = cur.fetchall()
+
     # Group lines by transaction_id, then attach to headers in order.
     lines_by_txn: dict = {}
     for line in all_lines:
         lines_by_txn.setdefault(line["transaction_id"], []).append(line)
+
+    # Group attachments by transaction_id -> [{id, filename}, ...].
+    atts_by_txn: dict = {}
+    for a in all_atts:
+        atts_by_txn.setdefault(a["transaction_id"], []).append(
+            {"id": a["id"], "filename": a["attachment_original_name"]}
+        )
 
     transactions = []
     grand_dr = Decimal("0.00")
@@ -337,8 +354,8 @@ def journal_listing(
         )
         grand_dr += block_dr
         grand_cr += block_cr
-        if h["attachment_path"]:
-            attachment_count += 1
+        txn_atts = atts_by_txn.get(h["id"], [])
+        attachment_count += len(txn_atts)
 
         transactions.append({
             "id": h["id"],
@@ -346,7 +363,7 @@ def journal_listing(
             "reference": h["transaction_reference"],
             "description": h["description"],
             "posted_by": h["posted_by"],
-            "attachment_filename": h["attachment_original_name"],
+            "attachments": txn_atts,
             "lines": [
                 {
                     "dr_cr": l["dr_cr"],
@@ -479,12 +496,17 @@ def balance_sheet(as_of: date) -> dict:
 
 # --- Trial Balance: per-account drill-down --------------------------------
 
+class AttachmentRef(TypedDict):
+    id: int
+    filename: str
+
+
 class AccountDetailLine(TypedDict):
     transaction_id: int
     transaction_reference: str       # may be '' for legacy rows pre-migration 005
     date: date
     description: str
-    attachment_filename: Optional[str]   # original filename, or None if no attachment
+    attachments: List["AttachmentRef"]   # 0..N files on this transaction
     dr: Decimal                      # 0 if this line is a CR
     cr: Decimal                      # 0 if this line is a DR
     balance: Decimal                 # running balance (Option B natural sign)
@@ -540,7 +562,6 @@ def account_detail(
                t.transaction_date,
                t.transaction_reference,
                t.description,
-               t.attachment_original_name,
                tl.id                      AS line_id,
                tl.dr_cr,
                tl.amount
@@ -553,6 +574,24 @@ def account_detail(
     with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         cur.execute(sql, [account["account_number"], *date_params])
         rows = cur.fetchall()
+
+        # Attachments for the transactions in view, grouped by transaction.
+        atts_by_txn: dict = {}
+        txn_ids = list({r["transaction_id"] for r in rows})
+        if txn_ids:
+            cur.execute(
+                """
+                SELECT transaction_id, id, attachment_original_name
+                  FROM transaction_attachments
+                 WHERE transaction_id = ANY(%s)
+                 ORDER BY transaction_id, id
+                """,
+                (txn_ids,),
+            )
+            for a in cur.fetchall():
+                atts_by_txn.setdefault(a["transaction_id"], []).append(
+                    {"id": a["id"], "filename": a["attachment_original_name"]}
+                )
 
     is_dr_natural = account["account_type"] in _DR_NATURAL_TYPES
     balance = Decimal("0.00")
@@ -569,7 +608,7 @@ def account_detail(
             "transaction_reference": r["transaction_reference"] or "",
             "date": r["transaction_date"],
             "description": r["description"],
-            "attachment_filename": r["attachment_original_name"],
+            "attachments": atts_by_txn.get(r["transaction_id"], []),
             "dr": dr_amt,
             "cr": cr_amt,
             "balance": balance,

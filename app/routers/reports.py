@@ -224,9 +224,9 @@ def account_detail(
                 "transaction_reference": l["transaction_reference"],
                 "date_dmy": l["date"].strftime("%d/%m/%Y"),
                 "description": l["description"],
-                # `attachment_filename` is None when there's no attachment;
-                # the JS uses null to decide whether to render a 📎 link.
-                "attachment_filename": l["attachment_filename"],
+                # 0..N attachments; the JS renders a 📎 per file plus an
+                # "+ Add" link (full users) until the cap is reached.
+                "attachments": l["attachments"],
                 "dr": _fmt_amt(l["dr"], blank_zero=True),
                 "cr": _fmt_amt(l["cr"], blank_zero=True),
                 "balance": _fmt_amt(l["balance"]),
@@ -572,7 +572,7 @@ def journal_listing(
             "reference": t["reference"],
             "description": t["description"],
             "posted_by": t["posted_by"],
-            "attachment_filename": t["attachment_filename"],
+            "attachments": t["attachments"],
             "lines": _format_journal_lines(t["lines"]),
             "total_dr_display": _fmt_amt(t["total_dr"]),
             "total_cr_display": _fmt_amt(t["total_cr"]),

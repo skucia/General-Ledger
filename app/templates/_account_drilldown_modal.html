@@ -44,13 +44,13 @@
    "Open in new tab" link is a fallback for any file the in-page viewer
    can't render.
 
-   Replace and Delete are hidden for view-only users. The transaction id
-   is stashed on the dialog's data-transaction-id attribute by the JS
-   when the viewer opens.
+   Delete is hidden for view-only users. The attachment id being viewed is
+   stashed on the dialog's data-attachment-id attribute by the JS when the
+   viewer opens, so Delete knows which file to remove.
 
-   The hidden #attachment-file-input is shared by both the per-row "+ Add"
-   action and the in-viewer Replace action. The JS sets a dataset flag
-   before triggering it so the change-handler knows what context it's in. #}
+   The hidden #attachment-file-input drives the per-row "+ Add" action
+   (each drill-down row can hold up to 5 files). The JS stashes the target
+   transaction id on it before triggering the picker. #}
 <dialog id="attachment-viewer" class="attachment-viewer no-print">
   <div class="dialog-content">
     <header class="modal-header">
@@ -60,7 +60,6 @@
           Open in new tab
         </a>
         {% if user and user.user_type == 'full' %}
-          <button type="button" id="viewer-replace" class="btn-secondary">Replace</button>
           <button type="button" id="viewer-delete" class="btn-secondary">Delete</button>
         {% endif %}
         <button type="button" class="modal-close" aria-label="Close">×</button>
@@ -73,9 +72,8 @@
   </div>
 </dialog>
 
-{# Shared hidden file input — used by both "+ Add" (from a drill-down row)
-   and viewer Replace. Only rendered for full users; view-only users never
-   reach the upload paths. #}
+{# Hidden file input driving "+ Add" from a drill-down row. Only rendered
+   for full users; view-only users never reach the upload paths. #}
 {% if user and user.user_type == 'full' %}
   <input type="file" id="attachment-file-input" hidden accept="application/pdf,image/*" />
 {% endif %}

@@ -294,8 +294,6 @@ def execute_close(close_date: date, admin_id: int) -> dict:
                 transaction_date=close_date,
                 description=preview["journal_description"],
                 transaction_reference=preview["journal_reference"],
-                attachment_filename=None,
-                attachment_original_name=None,
                 created_by=admin_id,
                 lines=journal_lines,
                 reverses_transaction_id=None,

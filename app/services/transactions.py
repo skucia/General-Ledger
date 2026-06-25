@@ -113,8 +113,6 @@ def insert_transaction_within(
     transaction_date: date,
     description: str,
     transaction_reference: str,
-    attachment_filename: Optional[str],
-    attachment_original_name: Optional[str],
     created_by: int,
     lines: List[TransactionLineInput],
     reverses_transaction_id: Optional[int] = None,
@@ -139,21 +137,17 @@ def insert_transaction_within(
             transaction_date,
             description,
             transaction_reference,
-            attachment_path,
-            attachment_original_name,
             created_by,
             reverses_transaction_id,
             journal_type
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
             transaction_date,
             description,
             transaction_reference,
-            attachment_filename,
-            attachment_original_name,
             created_by,
             reverses_transaction_id,
             journal_type,
@@ -211,13 +205,30 @@ def post_transaction(
                 transaction_date=transaction_date,
                 description=description,
                 transaction_reference=transaction_reference,
-                attachment_filename=attachment_filename,
-                attachment_original_name=attachment_original_name,
                 created_by=created_by,
                 lines=lines,
                 reverses_transaction_id=reverses_transaction_id,
                 journal_type="STANDARD",
             )
+            # Optional post-time attachment (single file). Written into the
+            # transaction_attachments child table within the SAME DB
+            # transaction so it commits atomically with the header + lines.
+            # Further files can be added later via the attachments service.
+            if attachment_filename:
+                cur.execute(
+                    """
+                    INSERT INTO transaction_attachments
+                        (transaction_id, attachment_path,
+                         attachment_original_name, uploaded_by)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        txn_id,
+                        attachment_filename,
+                        attachment_original_name or attachment_filename,
+                        created_by,
+                    ),
+                )
             # COMMIT happens here as the context manager exits. The deferred
             # balance trigger fires at COMMIT — if the totals don't match,
             # Postgres raises and our context manager rolls back.

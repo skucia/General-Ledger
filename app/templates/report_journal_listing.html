@@ -84,15 +84,15 @@
           <span class="jl-ref">{{ txn.reference }}</span>
           <span class="jl-desc">{{ txn.description }}</span>
           <span class="jl-user">posted by {{ txn.posted_by }}</span>
-          {% if txn.attachment_filename %}
+          {% for att in txn.attachments %}
             <a class="attachment-link"
-               href="/attachments/{{ txn.id }}"
+               href="/attachments/{{ att.id }}"
                target="_blank"
                rel="noopener"
-               title="{{ txn.attachment_filename }}"
-               data-transaction-id="{{ txn.id }}"
-               data-filename="{{ txn.attachment_filename }}">📎</a>
-          {% endif %}
+               title="{{ att.filename }}"
+               data-attachment-id="{{ att.id }}"
+               data-filename="{{ att.filename }}">📎</a>
+          {% endfor %}
         </div>
         <table class="journal-lines">
           {# colgroup + table-layout:fixed in CSS guarantees every block's

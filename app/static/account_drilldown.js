@@ -26,6 +26,11 @@
   const emptyEl = document.getElementById('modal-empty');
   const closeBtn = modal.querySelector('.modal-close');
 
+  // Per-transaction attachment cap — mirrors MAX_ATTACHMENTS_PER_TXN in
+  // app/services/attachments.py. The server enforces it too; this just
+  // hides the "+ Add" affordance once a row is full.
+  const MAX_ATTACHMENTS = 5;
+
   function buildCell(text, className) {
     const td = document.createElement('td');
     if (className) td.className = className;
@@ -36,27 +41,31 @@
   function buildAttachmentCell(line) {
     const td = document.createElement('td');
     td.className = 'att-col';
-    if (line.attachment_filename) {
+    const atts = line.attachments || [];
+
+    // One 📎 per attachment — each opens the in-app viewer for its file.
+    for (const att of atts) {
       const a = document.createElement('a');
-      a.href = '/attachments/' + encodeURIComponent(line.transaction_id);
+      a.href = '/attachments/' + encodeURIComponent(att.id);
       a.target = '_blank';        // fallback when JS doesn't intercept
       a.rel = 'noopener';
-      a.title = line.attachment_filename;  // tooltip = original filename
+      a.title = att.filename;     // tooltip = original filename
       a.className = 'attachment-link';
       a.textContent = '📎';
-      // Stash the data the viewer needs.
-      a.dataset.transactionId = line.transaction_id;
-      a.dataset.filename = line.attachment_filename;
+      a.dataset.attachmentId = att.id;
+      a.dataset.filename = att.filename;
       a.addEventListener('click', handleAttachmentClick);
       td.appendChild(a);
-    } else if (fileInput) {
-      // No attachment yet — full users get an "+ Add" link that opens the
-      // shared file picker for this transaction id. View-only users (no
-      // fileInput rendered) just get an empty cell.
+    }
+
+    // Full users get an "+ Add" link until the per-transaction cap is hit.
+    // View-only users (no fileInput rendered) never see it. Once at least
+    // one file exists, the link shrinks to a bare "+" to save space.
+    if (fileInput && atts.length < MAX_ATTACHMENTS) {
       const addLink = document.createElement('a');
       addLink.href = '#';
       addLink.className = 'add-attachment-link';
-      addLink.textContent = '+ Add';
+      addLink.textContent = atts.length ? '+' : '+ Add';
       addLink.title = 'Add attachment';
       addLink.dataset.transactionId = line.transaction_id;
       addLink.addEventListener('click', handleAddAttachmentClick);
@@ -72,7 +81,7 @@
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     const link = e.currentTarget;
-    showAttachmentViewer(link.dataset.transactionId, link.dataset.filename);
+    showAttachmentViewer(link.dataset.attachmentId, link.dataset.filename);
   }
 
   // --- Attachment viewer modal --------------------------------------------
@@ -82,12 +91,11 @@
   const viewerTitle = document.getElementById('viewer-title');
   const viewerNewTab = document.getElementById('viewer-newtab');
   const viewerCloseBtn = viewer ? viewer.querySelector('.modal-close') : null;
-  const viewerReplaceBtn = document.getElementById('viewer-replace');
   const viewerDeleteBtn = document.getElementById('viewer-delete');
 
-  // Shared hidden file input. Present only for full users — view-only users
-  // never see "+ Add" or Replace. dataset.mode tells the change-handler
-  // which path to take ('add' or 'replace') so the same input serves both.
+  // Hidden file input driving "+ Add". Present only for full users —
+  // view-only users never see "+ Add". The target transaction id is
+  // stashed on it before the picker opens.
   const fileInput = document.getElementById('attachment-file-input');
 
   // Remembers the last-opened drill-down context so we can re-fetch and
@@ -195,12 +203,12 @@
     return m ? m[1] : '';
   }
 
-  function showAttachmentViewer(transactionId, filename) {
+  function showAttachmentViewer(attachmentId, filename) {
     if (!viewer) return;
-    const url = '/attachments/' + encodeURIComponent(transactionId);
+    const url = '/attachments/' + encodeURIComponent(attachmentId);
 
-    // Stash the txn id so Replace / Delete know what they're acting on.
-    viewer.dataset.transactionId = transactionId;
+    // Stash the attachment id so Delete knows which file it's acting on.
+    viewer.dataset.attachmentId = attachmentId;
     viewerTitle.textContent = filename || 'Attachment';
     viewerNewTab.href = url;
     viewerNewTab.title = filename || '';
@@ -268,24 +276,24 @@
   async function uploadAttachment(transactionId, file) {
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch('/attachments/' + encodeURIComponent(transactionId), {
-      method: 'POST',
-      body: fd,
-    });
+    const res = await fetch(
+      '/attachments/transaction/' + encodeURIComponent(transactionId),
+      { method: 'POST', body: fd }
+    );
     if (!res.ok) {
       let msg = 'Upload failed (HTTP ' + res.status + ').';
       try {
         const body = await res.json();
-        if (body && body.detail) msg = body.detail;
+        if (body && body.detail) msg = body.detail;  // e.g. the cap message
       } catch (_) { /* non-JSON error body */ }
       throw new Error(msg);
     }
     return res.json();
   }
 
-  async function deleteAttachmentRequest(transactionId) {
+  async function deleteAttachmentRequest(attachmentId) {
     const res = await fetch(
-      '/attachments/' + encodeURIComponent(transactionId) + '/delete',
+      '/attachments/' + encodeURIComponent(attachmentId) + '/delete',
       { method: 'POST' }
     );
     if (!res.ok) {
@@ -297,18 +305,8 @@
   function handleAddAttachmentClick(e) {
     e.preventDefault();
     if (!fileInput) return;
-    const txnId = e.currentTarget.dataset.transactionId;
-    fileInput.dataset.mode = 'add';
-    fileInput.dataset.transactionId = txnId;
+    fileInput.dataset.transactionId = e.currentTarget.dataset.transactionId;
     fileInput.value = '';        // allow re-picking the same file later
-    fileInput.click();
-  }
-
-  function handleViewerReplaceClick() {
-    if (!fileInput || !viewer.dataset.transactionId) return;
-    fileInput.dataset.mode = 'replace';
-    fileInput.dataset.transactionId = viewer.dataset.transactionId;
-    fileInput.value = '';
     fileInput.click();
   }
 
@@ -316,23 +314,21 @@
     const file = fileInput.files && fileInput.files[0];
     if (!file) return;
     const txnId = fileInput.dataset.transactionId;
-    const mode = fileInput.dataset.mode;
     try {
       await uploadAttachment(txnId, file);
     } catch (err) {
       alert(err.message);
       return;
     }
-    if (mode === 'replace') viewer.close();
     await refreshDrillDown();
   }
 
   async function handleViewerDeleteClick() {
-    const txnId = viewer.dataset.transactionId;
-    if (!txnId) return;
+    const attId = viewer.dataset.attachmentId;
+    if (!attId) return;
     if (!confirm('Delete this attachment? The file cannot be recovered.')) return;
     try {
-      await deleteAttachmentRequest(txnId);
+      await deleteAttachmentRequest(attId);
     } catch (err) {
       alert(err.message);
       return;
@@ -343,9 +339,6 @@
 
   if (fileInput) {
     fileInput.addEventListener('change', handleFileInputChange);
-  }
-  if (viewerReplaceBtn) {
-    viewerReplaceBtn.addEventListener('click', handleViewerReplaceClick);
   }
   if (viewerDeleteBtn) {
     viewerDeleteBtn.addEventListener('click', handleViewerDeleteClick);
@@ -430,7 +423,7 @@
   // links in the Journal Listing's per-transaction headers). Drill-down
   // popup links built dynamically by buildAttachmentCell get their handler
   // attached at creation time; this loop handles the static ones.
-  document.querySelectorAll('a.attachment-link[data-transaction-id]').forEach(function (link) {
+  document.querySelectorAll('a.attachment-link[data-attachment-id]').forEach(function (link) {
     link.addEventListener('click', handleAttachmentClick);
   });
 })();
