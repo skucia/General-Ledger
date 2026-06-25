@@ -200,7 +200,7 @@ async def add_transaction_submit(
     # later error doesn't leave orphaned files on disk. Each entry is
     # {path, original_name, bytes}.
     pending_attachments: List[dict] = []
-    uploaded = [f for f in (attachment or []) if f is not None and f.filename]
+    uploaded = [f for f in (attachment or []) if getattr(f, "filename", "")]
     if len(uploaded) > attachments_service.MAX_ATTACHMENTS_PER_TXN:
         errors.append(
             f"You can attach at most "

@@ -74,10 +74,15 @@
     </label>
   </div>
 
-  <label class="txn-attachment">
-    Attachments (optional — up to 5 files, max 10 MB each)
-    <input type="file" name="attachment" multiple />
-  </label>
+  <div class="txn-attachment">
+    <span class="txn-attachment-heading">Attachments (optional — up to 5 files, max 10 MB each)</span>
+    <div id="attachment-rows">
+      <div class="attachment-row">
+        <input type="file" name="attachment" />
+      </div>
+    </div>
+    <button type="button" id="btn-add-attachment" class="btn-secondary">+ Add another file</button>
+  </div>
 
   <h3 class="txn-section-heading">Lines</h3>
   <table class="lines-table">
@@ -174,6 +179,15 @@
   {% endfor %}
 </datalist>
 
+{# Template for an extra attachment file-input row (cloned by the JS). The
+   first row above has no Remove button; cloned rows do. #}
+<template id="attachment-row-template">
+  <div class="attachment-row">
+    <input type="file" name="attachment" />
+    <button type="button" class="btn-remove-attachment btn-secondary">× Remove</button>
+  </div>
+</template>
+
 {# Template element used by the JS to clone a fresh blank row. #}
 <template id="line-template">
   <tr class="line-row">
@@ -240,6 +254,36 @@
     tbody.addEventListener('input', recalc);
     tbody.addEventListener('change', recalc);
     recalc();
+  })();
+
+  // Attachment rows: pick files one at a time. Each "+ Add another file"
+  // appends a new single-file input (all named "attachment", submitted as
+  // a list). Because each native input keeps its own chosen file, the
+  // selections accumulate instead of replacing one another. Capped at 5.
+  (function () {
+    const MAX = 5;
+    const rows = document.getElementById('attachment-rows');
+    const addBtn = document.getElementById('btn-add-attachment');
+    const tpl = document.getElementById('attachment-row-template');
+    if (!rows || !addBtn || !tpl) return;
+
+    function count() { return rows.querySelectorAll('.attachment-row').length; }
+    function syncAddBtn() { addBtn.hidden = count() >= MAX; }
+
+    addBtn.addEventListener('click', function () {
+      if (count() >= MAX) return;
+      rows.appendChild(tpl.content.cloneNode(true));
+      syncAddBtn();
+    });
+
+    rows.addEventListener('click', function (e) {
+      if (e.target && e.target.classList.contains('btn-remove-attachment')) {
+        e.target.closest('.attachment-row').remove();
+        syncAddBtn();
+      }
+    });
+
+    syncAddBtn();
   })();
 </script>
 {% endblock %}
