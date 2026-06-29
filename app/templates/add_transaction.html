@@ -17,10 +17,10 @@
     input/change so totals stay live.
 #}
 {% extends "base.html" %}
-{% block title %}Add Transaction — General Ledger{% endblock %}
+{% block title %}{% if form.mode == 'edit' %}Edit Transaction{% else %}Add Transaction{% endif %} — General Ledger{% endblock %}
 
 {% block content %}
-<h2>Add Transaction</h2>
+<h2>{% if form.mode == 'edit' %}Edit Transaction{% else %}Add Transaction{% endif %}</h2>
 
 {% if user.user_type == 'view' %}
   <p class="notice">
@@ -37,7 +37,7 @@
   </ul>
 {% endif %}
 
-<form method="post" action="/transactions/new" enctype="multipart/form-data" class="card txn-form">
+<form method="post" action="{{ form.action }}" enctype="multipart/form-data" class="card txn-form">
 
   <div class="txn-header">
     <label class="txn-header-date">
@@ -74,6 +74,12 @@
     </label>
   </div>
 
+  {% if form.mode == 'edit' %}
+  <p class="notice txn-attachment-note">
+    Attachments aren't edited here — add, view, or remove them from the
+    account drill-down (click the 📎 / “+ Add” on the transaction's row).
+  </p>
+  {% else %}
   <div class="txn-attachment">
     <span class="txn-attachment-heading">Attachments (optional — up to 5 files, max 10 MB each)</span>
     <div id="attachment-rows">
@@ -83,6 +89,7 @@
     </div>
     <button type="button" id="btn-add-attachment" class="btn-secondary">+ Add another file</button>
   </div>
+  {% endif %}
 
   <h3 class="txn-section-heading">Lines</h3>
   <table class="lines-table">
@@ -168,8 +175,24 @@
     <button type="button" id="btn-add-line" class="btn-secondary">+ Add line</button>
   </div>
 
+  {% if form.mode == 'edit' %}
+  <label class="txn-edit-reason">
+    Reason for edit (optional)
+    <input
+      type="text"
+      name="reason"
+      maxlength="200"
+      autocomplete="off"
+      value="{{ form.reason }}"
+    />
+  </label>
+  {% endif %}
+
   <div class="txn-actions">
-    <button type="submit">Post transaction</button>
+    <button type="submit">{% if form.mode == 'edit' %}Save changes{% else %}Post transaction{% endif %}</button>
+    {% if form.mode == 'edit' %}
+      <a href="/reports/journal-listing" class="btn-secondary">Cancel</a>
+    {% endif %}
   </div>
 </form>
 

@@ -54,8 +54,18 @@ def _render_form(
     lines: List[dict],
     errors: List[str],
     status_code: int = 200,
+    *,
+    action: str = "/transactions/new",
+    mode: str = "create",
+    reason: str = "",
+    txn_id: Optional[int] = None,
 ):
-    """Render add_transaction.html with the given state. Used by both GET and the error path of POST."""
+    """
+    Render add_transaction.html with the given state. Used by the create
+    GET/POST paths and the edit GET/POST paths. `mode` ('create' | 'edit')
+    drives the heading, submit label, attachment section, and the optional
+    edit-reason field; `action` is the form's POST target.
+    """
     return templates.TemplateResponse(
         "add_transaction.html",
         {
@@ -66,11 +76,131 @@ def _render_form(
                 "description": description,
                 "transaction_reference": transaction_reference,
                 "lines": lines,
+                "action": action,
+                "mode": mode,
+                "reason": reason,
+                "txn_id": txn_id,
             },
             "accounts": accounts_service.list_accounts(),
             "errors": errors,
         },
         status_code=status_code,
+    )
+
+
+def _validate_txn_form(
+    transaction_date: str,
+    description: str,
+    transaction_reference: str,
+    dr_cr: List[str],
+    account_number: List[str],
+    amount: List[str],
+):
+    """
+    Shared field/line/balance validation for both create and edit.
+
+    Returns a tuple:
+      (txn_date, description, transaction_reference, raw_lines,
+       parsed_lines, dr_total, errors)
+    `description` and `transaction_reference` come back stripped; `txn_date`
+    is a date (or None if unparseable); `raw_lines` is the user's input
+    re-zipped for re-rendering on error; `parsed_lines` are the validated,
+    canonical lines ready for the service.
+    """
+    description = description.strip()
+    transaction_reference = transaction_reference.strip()
+    raw_lines = [
+        {"dr_cr": d, "account_number": a, "amount": m}
+        for d, a, m in zip(dr_cr, account_number, amount)
+    ]
+
+    errors: List[str] = []
+    parsed_lines: List[transactions_service.TransactionLineInput] = []
+
+    # --- 1. Date ----------------------------------------------------------
+    try:
+        txn_date = date.fromisoformat(transaction_date)
+    except ValueError:
+        errors.append("Transaction date is invalid.")
+        txn_date = None  # type: ignore
+
+    # --- 2. Description ---------------------------------------------------
+    if not description:
+        errors.append("Description is required.")
+    elif len(description) > 200:
+        errors.append("Description must be 200 characters or fewer.")
+
+    # --- 2b. Reference ----------------------------------------------------
+    if not transaction_reference:
+        errors.append("Reference is required.")
+    elif len(transaction_reference) > 20:
+        errors.append("Reference must be 20 characters or fewer.")
+
+    # --- 3. Line count ----------------------------------------------------
+    if len(raw_lines) < 2:
+        errors.append("At least 2 lines are required (one DR + one CR).")
+
+    # --- 3b. Per-line validation -----------------------------------------
+    for i, line in enumerate(raw_lines, start=1):
+        line_dr = (line["dr_cr"] or "").strip().upper()
+        line_acc = (line["account_number"] or "").strip()
+        line_amt = (line["amount"] or "").strip()
+
+        if line_dr not in ("DR", "CR"):
+            errors.append(f"Line {i}: choose DR or CR.")
+            continue
+        if not line_acc:
+            errors.append(f"Line {i}: account number is required.")
+            continue
+
+        acct = accounts_service.get_account(line_acc)
+        if acct is None:
+            errors.append(f"Line {i}: account '{line_acc}' does not exist.")
+            continue
+
+        try:
+            amt_dec = Decimal(line_amt)
+        except (InvalidOperation, ValueError):
+            errors.append(f"Line {i}: amount must be a number.")
+            continue
+
+        if amt_dec <= 0:
+            errors.append(f"Line {i}: amount must be greater than zero.")
+            continue
+
+        parsed_lines.append({
+            "dr_cr": line_dr,
+            "account_number": acct["account_number"],  # canonical uppercase
+            "amount": amt_dec.quantize(Decimal("0.01")),
+        })
+
+    # --- 4. DR=CR check (only if every line parsed cleanly) --------------
+    dr_total = Decimal("0.00")
+    if not errors and len(parsed_lines) >= 2:
+        dr_total = sum(
+            (l["amount"] for l in parsed_lines if l["dr_cr"] == "DR"),
+            Decimal("0.00"),
+        )
+        cr_total = sum(
+            (l["amount"] for l in parsed_lines if l["dr_cr"] == "CR"),
+            Decimal("0.00"),
+        )
+        if dr_total != cr_total:
+            errors.append(
+                f"Transaction is not balanced: "
+                f"DR=${dr_total:,.2f}, CR=${cr_total:,.2f}, "
+                f"Difference=${(dr_total - cr_total):,.2f}. "
+                f"Please correct and resubmit."
+            )
+
+    return (
+        txn_date,
+        description,
+        transaction_reference,
+        raw_lines,
+        parsed_lines,
+        dr_total,
+        errors,
     )
 
 
@@ -107,93 +237,22 @@ async def add_transaction_submit(
     amount: List[str] = Form(default=[]),
     attachment: List[UploadFile] = File(default=[]),
 ):
-    description = description.strip()
-    transaction_reference = transaction_reference.strip()
-    # Re-zip into per-line dicts so we can render them back on error.
-    raw_lines = [
-        {"dr_cr": d, "account_number": a, "amount": m}
-        for d, a, m in zip(dr_cr, account_number, amount)
-    ]
-
-    errors: List[str] = []
-    parsed_lines: List[transactions_service.TransactionLineInput] = []
-
-    # --- 1. Date ----------------------------------------------------------
-    try:
-        txn_date = date.fromisoformat(transaction_date)
-    except ValueError:
-        errors.append("Transaction date is invalid.")
-        txn_date = None  # type: ignore
-
-    # --- 2. Description ---------------------------------------------------
-    if not description:
-        errors.append("Description is required.")
-    elif len(description) > 200:
-        errors.append("Description must be 200 characters or fewer.")
-
-    # --- 2b. Reference ----------------------------------------------------
-    if not transaction_reference:
-        errors.append("Reference is required.")
-    elif len(transaction_reference) > 20:
-        errors.append("Reference must be 20 characters or fewer.")
-
-    # --- 3. Line count ----------------------------------------------------
-    if len(raw_lines) < 2:
-        errors.append("At least 2 lines are required (one DR + one CR).")
-
-    # --- 3. Per-line validation ------------------------------------------
-    for i, line in enumerate(raw_lines, start=1):
-        line_dr = (line["dr_cr"] or "").strip().upper()
-        line_acc = (line["account_number"] or "").strip()
-        line_amt = (line["amount"] or "").strip()
-
-        if line_dr not in ("DR", "CR"):
-            errors.append(f"Line {i}: choose DR or CR.")
-            continue
-        if not line_acc:
-            errors.append(f"Line {i}: account number is required.")
-            continue
-
-        acct = accounts_service.get_account(line_acc)
-        if acct is None:
-            errors.append(f"Line {i}: account '{line_acc}' does not exist.")
-            continue
-
-        try:
-            amt_dec = Decimal(line_amt)
-        except (InvalidOperation, ValueError):
-            errors.append(f"Line {i}: amount must be a number.")
-            continue
-
-        if amt_dec <= 0:
-            errors.append(f"Line {i}: amount must be greater than zero.")
-            continue
-
-        parsed_lines.append({
-            "dr_cr": line_dr,
-            "account_number": acct["account_number"],  # canonical uppercase
-            "amount": amt_dec.quantize(Decimal("0.01")),
-        })
-
-    # --- 4. DR=CR check (only if every line parsed cleanly) --------------
-    dr_total = Decimal("0.00")
-    cr_total = Decimal("0.00")
-    if not errors and len(parsed_lines) >= 2:
-        dr_total = sum(
-            (l["amount"] for l in parsed_lines if l["dr_cr"] == "DR"),
-            Decimal("0.00"),
-        )
-        cr_total = sum(
-            (l["amount"] for l in parsed_lines if l["dr_cr"] == "CR"),
-            Decimal("0.00"),
-        )
-        if dr_total != cr_total:
-            errors.append(
-                f"Transaction is not balanced: "
-                f"DR=${dr_total:,.2f}, CR=${cr_total:,.2f}, "
-                f"Difference=${(dr_total - cr_total):,.2f}. "
-                f"Please correct and resubmit."
-            )
+    (
+        txn_date,
+        description,
+        transaction_reference,
+        raw_lines,
+        parsed_lines,
+        dr_total,
+        errors,
+    ) = _validate_txn_form(
+        transaction_date,
+        description,
+        transaction_reference,
+        dr_cr,
+        account_number,
+        amount,
+    )
 
     # --- 5. Attachments (optional, up to 5) -------------------------------
     # Hold each file's bytes until the whole form passes validation, so a
@@ -266,10 +325,10 @@ async def add_transaction_submit(
         )
     except transactions_service.UnbalancedTransactionError as exc:
         # Defensive: the app already validated DR=CR. If we hit this, our
-        # own logic disagreed with Postgres — clean up the file and surface
+        # own logic disagreed with Postgres — clean up the files and surface
         # the message verbatim.
-        if saved_filename:
-            (settings.upload_dir / saved_filename).unlink(missing_ok=True)
+        for att in pending_attachments:
+            (settings.upload_dir / att["path"]).unlink(missing_ok=True)
         return _render_form(
             request=request,
             user=user,
@@ -288,3 +347,152 @@ async def add_transaction_submit(
         "success",
     )
     return RedirectResponse("/transactions/new", status_code=303)
+
+
+# --- Edit (open-period, STANDARD transactions only) ------------------------
+
+@router.get("/transactions/{transaction_id}/edit")
+def edit_transaction_form(
+    request: Request,
+    transaction_id: int,
+    user: dict = Depends(require_full_user),
+):
+    """Render the edit form pre-filled with the transaction's current state."""
+    try:
+        txn = transactions_service.get_transaction_for_edit(transaction_id)
+    except transactions_service.TransactionNotFoundError:
+        flash(request, "That transaction no longer exists.", "error")
+        return RedirectResponse("/menu", status_code=303)
+    except transactions_service.TransactionNotEditableError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse("/menu", status_code=303)
+    except transactions_service.PeriodLockedError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse("/menu", status_code=303)
+
+    return _render_form(
+        request=request,
+        user=user,
+        transaction_date=txn["transaction_date"].isoformat(),
+        description=txn["description"],
+        transaction_reference=txn["transaction_reference"],
+        lines=[
+            {
+                "dr_cr": l["dr_cr"],
+                "account_number": l["account_number"],
+                "amount": str(l["amount"]),
+            }
+            for l in txn["lines"]
+        ],
+        errors=[],
+        action=f"/transactions/{transaction_id}/edit",
+        mode="edit",
+        txn_id=transaction_id,
+    )
+
+
+@router.post("/transactions/{transaction_id}/edit")
+async def edit_transaction_submit(
+    request: Request,
+    transaction_id: int,
+    user: dict = Depends(require_full_user),
+    transaction_date: str = Form(...),
+    description: str = Form(default=""),
+    transaction_reference: str = Form(default=""),
+    reason: str = Form(default=""),
+    dr_cr: List[str] = Form(default=[]),
+    account_number: List[str] = Form(default=[]),
+    amount: List[str] = Form(default=[]),
+):
+    reason = reason.strip()
+    (
+        txn_date,
+        description,
+        transaction_reference,
+        raw_lines,
+        parsed_lines,
+        dr_total,
+        errors,
+    ) = _validate_txn_form(
+        transaction_date,
+        description,
+        transaction_reference,
+        dr_cr,
+        account_number,
+        amount,
+    )
+
+    action = f"/transactions/{transaction_id}/edit"
+
+    if errors:
+        return _render_form(
+            request=request,
+            user=user,
+            transaction_date=transaction_date,
+            description=description,
+            transaction_reference=transaction_reference,
+            lines=raw_lines,
+            errors=errors,
+            status_code=400,
+            action=action,
+            mode="edit",
+            reason=reason,
+            txn_id=transaction_id,
+        )
+
+    try:
+        transactions_service.update_transaction(
+            transaction_id,
+            transaction_date=txn_date,
+            description=description,
+            transaction_reference=transaction_reference,
+            lines=parsed_lines,
+            edited_by=user["id"],
+            reason=(reason or None),
+        )
+    except (
+        transactions_service.TransactionNotFoundError,
+        transactions_service.TransactionNotEditableError,
+    ) as exc:
+        # State changed under us (e.g. someone reversed or locked it). Bounce
+        # to the menu with the reason rather than re-rendering a stale form.
+        flash(request, str(exc) or "That transaction can no longer be edited.", "error")
+        return RedirectResponse("/menu", status_code=303)
+    except transactions_service.PeriodLockedError as exc:
+        return _render_form(
+            request=request,
+            user=user,
+            transaction_date=transaction_date,
+            description=description,
+            transaction_reference=transaction_reference,
+            lines=raw_lines,
+            errors=[str(exc)],
+            status_code=400,
+            action=action,
+            mode="edit",
+            reason=reason,
+            txn_id=transaction_id,
+        )
+    except transactions_service.UnbalancedTransactionError as exc:
+        return _render_form(
+            request=request,
+            user=user,
+            transaction_date=transaction_date,
+            description=description,
+            transaction_reference=transaction_reference,
+            lines=raw_lines,
+            errors=[f"Database rejected the changes: {exc}"],
+            status_code=400,
+            action=action,
+            mode="edit",
+            reason=reason,
+            txn_id=transaction_id,
+        )
+
+    flash(
+        request,
+        f"Transaction {transaction_reference} updated "
+        f"(DR=CR=${dr_total:,.2f}, {len(parsed_lines)} lines).",
+        "success",
+    )
+    return RedirectResponse("/reports/journal-listing", status_code=303)

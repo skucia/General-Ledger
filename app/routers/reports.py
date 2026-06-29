@@ -573,6 +573,7 @@ def journal_listing(
             "description": t["description"],
             "posted_by": t["posted_by"],
             "attachments": t["attachments"],
+            "editable": t["editable"],
             "lines": _format_journal_lines(t["lines"]),
             "total_dr_display": _fmt_amt(t["total_dr"]),
             "total_cr_display": _fmt_amt(t["total_cr"]),

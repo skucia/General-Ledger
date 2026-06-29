@@ -29,6 +29,7 @@ from typing import List, Optional, TypedDict
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.types.json import Json
 
 from app.db import get_connection
 # get_current_lock_date moved to app.services.period_locks (separation of
@@ -49,6 +50,18 @@ class UnbalancedTransactionError(Exception):
     """
     Raised if the DB-level balance trigger rejects the post. Should never
     happen if the route handler validated correctly, but it's a fail-safe.
+    """
+
+
+class TransactionNotFoundError(Exception):
+    """Raised when a transaction id doesn't exist."""
+
+
+class TransactionNotEditableError(Exception):
+    """
+    Raised when a transaction exists but fails the editability guards
+    (system-generated entry, a reversal, already reversed, etc.). Carries
+    a user-facing message.
     """
 
 
@@ -359,3 +372,207 @@ def reverse_transaction(
         "date_was_forwarded": date_was_forwarded,
         "message": message,
     }
+
+
+# --- Editing (open-period, STANDARD transactions only) --------------------
+
+def _assert_editable(cur, transaction_id: int) -> dict:
+    """
+    Fetch a transaction header (using the GIVEN dict_row cursor) and verify
+    it passes the editability guards. Returns the header row. Raises
+    TransactionNotFoundError or TransactionNotEditableError.
+
+    Does NOT check the period lock — callers use assert_period_open()
+    separately so the message can name the date. Using the caller's cursor
+    means the guard and the subsequent edit share one DB snapshot.
+
+    Only plain STANDARD transactions are editable. System journals
+    (year-end close), reversal entries, and transactions that have already
+    been reversed are off-limits to preserve ledger integrity.
+    """
+    cur.execute(
+        """
+        SELECT t.id,
+               t.transaction_date,
+               t.description,
+               t.transaction_reference,
+               t.journal_type,
+               t.reverses_transaction_id,
+               EXISTS (
+                   SELECT 1 FROM transactions r
+                    WHERE r.reverses_transaction_id = t.id
+               ) AS is_reversed
+          FROM transactions t
+         WHERE t.id = %s
+        """,
+        (transaction_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        raise TransactionNotFoundError(f"Transaction {transaction_id} not found")
+    if row["journal_type"] != "STANDARD":
+        raise TransactionNotEditableError(
+            "This is a system-generated journal (e.g. a year-end close) "
+            "and can't be edited."
+        )
+    if row["reverses_transaction_id"] is not None:
+        raise TransactionNotEditableError(
+            "This is a reversal entry and can't be edited — adjust the "
+            "original transaction instead."
+        )
+    if row["is_reversed"]:
+        raise TransactionNotEditableError(
+            "This transaction has already been reversed and can't be edited."
+        )
+    return row
+
+
+def get_transaction_for_edit(transaction_id: int) -> dict:
+    """
+    Fetch a transaction (header + lines) for the edit form. Enforces the
+    editability guards and the period lock (a locked-period transaction
+    can't be edited). Returns:
+      {
+        "id", "transaction_date" (date), "description",
+        "transaction_reference",
+        "lines": [{"dr_cr", "account_number", "amount" (Decimal)}, ...],
+      }
+    Raises TransactionNotFoundError, TransactionNotEditableError,
+    PeriodLockedError.
+    """
+    with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+        header = _assert_editable(cur, transaction_id)
+        assert_period_open(header["transaction_date"], operation="edit")
+        cur.execute(
+            """
+            SELECT dr_cr, account_number, amount
+              FROM transaction_lines
+             WHERE transaction_id = %s
+             ORDER BY id
+            """,
+            (transaction_id,),
+        )
+        lines = cur.fetchall()
+    return {
+        "id": header["id"],
+        "transaction_date": header["transaction_date"],
+        "description": header["description"],
+        "transaction_reference": header["transaction_reference"],
+        "lines": [
+            {
+                "dr_cr": l["dr_cr"],
+                "account_number": l["account_number"],
+                "amount": l["amount"],
+            }
+            for l in lines
+        ],
+    }
+
+
+def update_transaction(
+    transaction_id: int,
+    *,
+    transaction_date: date,
+    description: str,
+    transaction_reference: str,
+    lines: List[TransactionLineInput],
+    edited_by: int,
+    reason: Optional[str] = None,
+) -> None:
+    """
+    Edit an existing open-period STANDARD transaction in place. Captures a
+    full before-snapshot (header + lines) into transaction_edits, UPDATEs
+    the header, and replaces the lines wholesale — all in ONE DB
+    transaction, so the deferred balance trigger validates the new lines at
+    COMMIT.
+
+    Both the current date and the new date must be in the open period.
+
+    Raises TransactionNotFoundError, TransactionNotEditableError,
+    PeriodLockedError, UnbalancedTransactionError.
+    """
+    # New date must be in the open period (the current date is checked
+    # below, once we've read the row).
+    assert_period_open(transaction_date, operation="edit")
+
+    try:
+        with get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            header = _assert_editable(cur, transaction_id)
+            # The CURRENT (pre-edit) date must also be open — can't touch a
+            # locked-period row even to move it forward.
+            assert_period_open(header["transaction_date"], operation="edit")
+
+            # Snapshot current state before mutating anything.
+            cur.execute(
+                """
+                SELECT dr_cr, account_number, amount
+                  FROM transaction_lines
+                 WHERE transaction_id = %s
+                 ORDER BY id
+                """,
+                (transaction_id,),
+            )
+            old_lines = cur.fetchall()
+            snapshot = {
+                "transaction_date": header["transaction_date"].isoformat(),
+                "description": header["description"],
+                "transaction_reference": header["transaction_reference"],
+                "journal_type": header["journal_type"],
+                "lines": [
+                    {
+                        "dr_cr": l["dr_cr"],
+                        "account_number": l["account_number"],
+                        "amount": str(l["amount"]),
+                    }
+                    for l in old_lines
+                ],
+            }
+            cur.execute(
+                """
+                INSERT INTO transaction_edits
+                    (transaction_id, edited_by, reason, before_snapshot)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (transaction_id, edited_by, (reason or None), Json(snapshot)),
+            )
+
+            cur.execute(
+                """
+                UPDATE transactions
+                   SET transaction_date = %s,
+                       description = %s,
+                       transaction_reference = %s
+                 WHERE id = %s
+                """,
+                (transaction_date, description, transaction_reference, transaction_id),
+            )
+
+            # Replace the lines wholesale: delete the old set, insert the new.
+            cur.execute(
+                "DELETE FROM transaction_lines WHERE transaction_id = %s",
+                (transaction_id,),
+            )
+            for line in lines:
+                cur.execute(
+                    """
+                    INSERT INTO transaction_lines
+                        (transaction_id, dr_cr, account_number, amount)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        transaction_id,
+                        line["dr_cr"],
+                        line["account_number"],
+                        line["amount"],
+                    ),
+                )
+            # COMMIT here -> deferred balance trigger validates the new lines.
+    except psycopg.errors.DatabaseError as exc:
+        # Same dispatch as post_transaction: GL001 = period-lock trigger,
+        # P0001 = balance trigger. Anything else propagates.
+        if exc.sqlstate == "GL001":
+            current_lock = get_current_lock_date() or transaction_date
+            raise PeriodLockedError(transaction_date, current_lock, "edit") from exc
+        if exc.sqlstate == "P0001":
+            raise UnbalancedTransactionError(str(exc)) from exc
+        raise

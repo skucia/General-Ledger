@@ -18,6 +18,7 @@ from psycopg.rows import dict_row
 
 from app.db import get_connection
 from app.services import accounts as accounts_service
+from app.services.period_locks import get_current_lock_date
 
 
 # --- Company settings ------------------------------------------------------
@@ -271,6 +272,12 @@ def journal_listing(
                t.transaction_date,
                t.transaction_reference,
                t.description,
+               t.journal_type,
+               t.reverses_transaction_id,
+               EXISTS (
+                   SELECT 1 FROM transactions r
+                    WHERE r.reverses_transaction_id = t.id
+               ) AS is_reversed,
                u.username AS posted_by
           FROM transactions t
           JOIN users u ON u.id = t.created_by
@@ -341,6 +348,8 @@ def journal_listing(
     grand_dr = Decimal("0.00")
     grand_cr = Decimal("0.00")
     attachment_count = 0
+    # Current period lock — used to decide which transactions are editable.
+    lock_date = get_current_lock_date()
 
     for h in headers:
         txn_lines = lines_by_txn.get(h["id"], [])
@@ -357,6 +366,16 @@ def journal_listing(
         txn_atts = atts_by_txn.get(h["id"], [])
         attachment_count += len(txn_atts)
 
+        # A transaction is editable only if it's a plain STANDARD entry in
+        # the open period, not a reversal, and not already reversed. Mirrors
+        # the guards in transactions_service._assert_editable.
+        editable = (
+            h["journal_type"] == "STANDARD"
+            and h["reverses_transaction_id"] is None
+            and not h["is_reversed"]
+            and (lock_date is None or h["transaction_date"] > lock_date)
+        )
+
         transactions.append({
             "id": h["id"],
             "date": h["transaction_date"],
@@ -364,6 +383,7 @@ def journal_listing(
             "description": h["description"],
             "posted_by": h["posted_by"],
             "attachments": txn_atts,
+            "editable": editable,
             "lines": [
                 {
                     "dr_cr": l["dr_cr"],

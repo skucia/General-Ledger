@@ -84,6 +84,9 @@
           <span class="jl-ref">{{ txn.reference }}</span>
           <span class="jl-desc">{{ txn.description }}</span>
           <span class="jl-user">posted by {{ txn.posted_by }}</span>
+          {% if user and user.user_type == 'full' and txn.editable %}
+            <a class="jl-edit-link no-print" href="/transactions/{{ txn.id }}/edit">Edit</a>
+          {% endif %}
           {% for att in txn.attachments %}
             <a class="attachment-link"
                href="/attachments/{{ att.id }}"
